@@ -13,7 +13,7 @@ Currently, we are providing security updates for the following versions:
 We take the security of API Key Manager seriously. If you believe you've found a security vulnerability, please follow these steps:
 
 1. **Do not disclose the vulnerability publicly**
-2. **Email us at [security@nanmengtech.com](mailto:security@nanmengtech.com)** with details about the vulnerability
+2. **Open a GitHub Issue** with details about the vulnerability (use a private security advisory if available)
 3. Include steps to reproduce, if possible
 4. Include potential impact of the vulnerability
 

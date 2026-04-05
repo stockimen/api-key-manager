@@ -4,9 +4,33 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import ApiStatusCard from "@/components/api-balance-card"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { useState, useEffect } from "react"
-import { apiKeyStorage } from "@/lib/storage"
+import { api } from "@/lib/api-client"
 import { Progress } from "@/components/ui/progress"
 import { Activity } from "lucide-react"
+
+// API密钥类型
+interface ApiKey {
+  id: number
+  userId: number
+  name: string
+  key: string
+  type: "apikey" | "complex"
+  provider: string
+  rechargeUrl?: string
+  appId?: string
+  secretKey?: string
+  baseUrl: string
+  createdAt: string
+  lastUsed: string
+}
+
+// 连接测试结果类型
+interface ConnectionTestResult {
+  status: number
+  message: string
+  testedAt: string
+  latency: number
+}
 
 export default function DashboardPage() {
   const { t } = useLanguage()
@@ -14,98 +38,98 @@ export default function DashboardPage() {
   const [apiAvailability, setApiAvailability] = useState(0)
 
   useEffect(() => {
-    const calculateApiStats = () => {
-      // Get all API keys
-      const keys = apiKeyStorage.getApiKeysByUserId(1)
+    const calculateApiStats = async () => {
+      try {
+        const data = await api.get<{ keys: ApiKey[] }>("/keys")
+        const keys = data.keys
 
-      // Set the active keys count (total number of keys)
-      setActiveKeys(keys.length)
-
-      // Get connection test results from cache
-      const cacheJson = localStorage.getItem("api_connection_test_results")
-      if (!cacheJson) {
-        setApiAvailability(0)
-        return
-      }
-
-      const cache = JSON.parse(cacheJson)
-
-      // Count available APIs (status 200-299)
-      let availableCount = 0
-      let totalTestedCount = 0
-
-      keys.forEach((key) => {
-        // Skip custom APIs for availability calculation
-        if (key.provider === "Custom") return
-
-        const testResult = cache[key.id]
-        if (testResult) {
-          totalTestedCount++
-          if (testResult.status >= 200 && testResult.status < 300) {
-            availableCount++
-          }
-        }
-      })
-
-      // Calculate availability percentage
-      const availability = totalTestedCount > 0 ? Math.round((availableCount / totalTestedCount) * 100) : 0
-
-      setApiAvailability(availability)
-    }
-
-    calculateApiStats()
-  }, [])
-
-  // Add an event listener to update stats when API statuses are refreshed
-  useEffect(() => {
-    const handleApiStatusUpdate = () => {
-      // Recalculate API stats when statuses are updated
-      const calculateApiStats = () => {
-        // Get all API keys
-        const keys = apiKeyStorage.getApiKeysByUserId(1)
-
-        // Set the active keys count (total number of keys)
         setActiveKeys(keys.length)
 
-        // Get connection test results from cache
-        const cacheJson = localStorage.getItem("api_connection_test_results")
-        if (!cacheJson) {
-          setApiAvailability(0)
-          return
-        }
+        // 获取所有非 Custom 密钥的缓存测试结果
+        const testableKeys = keys.filter((key) => key.provider !== "Custom")
+        const testResults = await Promise.all(
+          testableKeys.map(async (key) => {
+            try {
+              const result = await api.get<{ result: ConnectionTestResult | null }>(
+                `/test-connection?keyId=${key.id}`,
+              )
+              return result.result
+            } catch {
+              return null
+            }
+          }),
+        )
 
-        const cache = JSON.parse(cacheJson)
-
-        // Count available APIs (status 200-299)
+        // 统计可用 API
         let availableCount = 0
         let totalTestedCount = 0
 
-        keys.forEach((key) => {
-          // Skip custom APIs for availability calculation
-          if (key.provider === "Custom") return
-
-          const testResult = cache[key.id]
-          if (testResult) {
+        testResults.forEach((result) => {
+          if (result) {
             totalTestedCount++
-            if (testResult.status >= 200 && testResult.status < 300) {
+            if (result.status >= 200 && result.status < 300) {
               availableCount++
             }
           }
         })
 
-        // Calculate availability percentage
         const availability = totalTestedCount > 0 ? Math.round((availableCount / totalTestedCount) * 100) : 0
-
         setApiAvailability(availability)
+      } catch (error) {
+        console.error("获取统计信息失败:", error)
       }
-
-      calculateApiStats()
     }
 
-    // Add event listener for API status updates
-    window.addEventListener("api-status-updated", handleApiStatusUpdate)
+    calculateApiStats()
+  }, [])
 
-    // Clean up event listener
+  // 监听 API 状态更新事件
+  useEffect(() => {
+    const handleApiStatusUpdate = () => {
+      // 重新计算统计
+      const recalculate = async () => {
+        try {
+          const data = await api.get<{ keys: ApiKey[] }>("/keys")
+          const keys = data.keys
+          setActiveKeys(keys.length)
+
+          const testableKeys = keys.filter((key) => key.provider !== "Custom")
+          const testResults = await Promise.all(
+            testableKeys.map(async (key) => {
+              try {
+                const result = await api.get<{ result: ConnectionTestResult | null }>(
+                  `/test-connection?keyId=${key.id}`,
+                )
+                return result.result
+              } catch {
+                return null
+              }
+            }),
+          )
+
+          let availableCount = 0
+          let totalTestedCount = 0
+
+          testResults.forEach((result) => {
+            if (result) {
+              totalTestedCount++
+              if (result.status >= 200 && result.status < 300) {
+                availableCount++
+              }
+            }
+          })
+
+          const availability = totalTestedCount > 0 ? Math.round((availableCount / totalTestedCount) * 100) : 0
+          setApiAvailability(availability)
+        } catch (error) {
+          console.error("重新计算统计失败:", error)
+        }
+      }
+
+      recalculate()
+    }
+
+    window.addEventListener("api-status-updated", handleApiStatusUpdate)
     return () => {
       window.removeEventListener("api-status-updated", handleApiStatusUpdate)
     }
@@ -162,4 +186,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-

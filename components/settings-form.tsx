@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { userStorage, settingsStorage, initStorage } from "@/lib/storage"
+import { api } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, AlertCircle } from "lucide-react"
 
@@ -36,21 +36,24 @@ export default function SettingsForm() {
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [passwordError, setPasswordError] = useState("")
 
-  // 初始化设置
+  // 初始化设置 - 从 API 加载
   useEffect(() => {
-    initStorage()
+    const loadData = async () => {
+      try {
+        const [settingsData, userData] = await Promise.all([
+          api.get<{ settings: { defaultKeyType: string } }>("/settings"),
+          api.get<{ user: { username: string; email: string } }>("/user"),
+        ])
 
-    // 加载系统设置
-    const settings = settingsStorage.getSystemSettings()
-    setDefaultKeyType(settings.defaultKeyType)
-
-    // 加载用户设置
-    const userJson = localStorage.getItem("user")
-    if (userJson) {
-      const user = JSON.parse(userJson)
-      setUsername(user.username)
-      setEmail(user.email)
+        setDefaultKeyType(settingsData.settings.defaultKeyType)
+        setUsername(userData.user.username)
+        setEmail(userData.user.email)
+      } catch (error) {
+        console.error("加载设置失败:", error)
+      }
     }
+
+    loadData()
   }, [])
 
   // 重置成功状态
@@ -79,16 +82,10 @@ export default function SettingsForm() {
   const saveSystemSettings = async () => {
     setSystemSaving(true)
     try {
-      // 模拟网络延迟
-      await new Promise((resolve) => setTimeout(resolve, 600))
-
-      // 保存系统设置
-      settingsStorage.updateSystemSettings({
-        allowRegistration: false, // 始终保持注册功能关闭
+      await api.put("/settings", {
         defaultKeyType: defaultKeyType as "apikey" | "complex",
       })
 
-      // 显示成功提示
       setSystemSuccess(true)
       toast({
         title: t("settings.settingsSaved"),
@@ -110,7 +107,6 @@ export default function SettingsForm() {
   const saveUserSettings = async () => {
     setUserSaving(true)
     try {
-      // 验证邮箱格式
       if (email && !validateEmail(email)) {
         toast({
           title: t("common.error"),
@@ -120,32 +116,11 @@ export default function SettingsForm() {
         return
       }
 
-      // 模拟网络延迟
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      const data = await api.put<{ user: { username: string; email: string } }>("/user", { username, email })
 
-      // 获取当前用户
-      const userJson = localStorage.getItem("user")
-      if (userJson) {
-        const user = JSON.parse(userJson)
+      setUsername(data.user.username)
+      setEmail(data.user.email)
 
-        // 更新用户信息
-        userStorage.updateUser(user.id, {
-          username,
-          email,
-        })
-
-        // 更新本地存储的用户信息
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            ...user,
-            username,
-            email,
-          }),
-        )
-      }
-
-      // 显示成功提示
       setUserSuccess(true)
       toast({
         title: t("settings.settingsSaved"),
@@ -169,69 +144,48 @@ export default function SettingsForm() {
     setPasswordError("")
 
     try {
-      // 验证当前密码
       if (!currentPassword) {
         setPasswordError("请输入当前密码")
         return
       }
 
-      // 验证新密码
       if (!newPassword) {
         setPasswordError("请输入新密码")
         return
       }
 
-      // 验证确认密码
       if (newPassword !== confirmPassword) {
         setPasswordError("两次输入的密码不一致")
         return
       }
 
-      // 验证密码长度
       if (newPassword.length < 6) {
         setPasswordError("新密码长度不能少于6个字符")
         return
       }
 
-      // 模拟网络延迟
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      await api.put("/user", { currentPassword, newPassword })
 
-      // 获取当前用户
-      const userJson = localStorage.getItem("user")
-      if (userJson) {
-        const user = JSON.parse(userJson)
-        const userObj = userStorage.getUserByUsername(user.username)
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
 
-        // 验证当前密码是否正确
-        if (!userObj || userObj.password !== currentPassword) {
-          setPasswordError("当前密码不正确")
-          return
-        }
-
-        // 更新密码
-        userStorage.updateUser(user.id, {
-          password: newPassword,
-        })
-
-        // 清空密码字段
-        setCurrentPassword("")
-        setNewPassword("")
-        setConfirmPassword("")
-
-        // 显示成功提示
-        setPasswordSuccess(true)
+      setPasswordSuccess(true)
+      toast({
+        title: t("settings.passwordChanged"),
+        description: "密码已成功更新",
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "更改密码失败，请重试"
+      if (message.includes("密码错误")) {
+        setPasswordError("当前密码不正确")
+      } else {
         toast({
-          title: t("settings.passwordChanged"),
-          description: "密码已成功更新",
+          title: t("common.error"),
+          description: message,
+          variant: "destructive",
         })
       }
-    } catch (error) {
-      console.error("更改密码失败:", error)
-      toast({
-        title: t("common.error"),
-        description: "更改密码失败，请重试",
-        variant: "destructive",
-      })
     } finally {
       setPasswordSaving(false)
     }
@@ -276,7 +230,6 @@ export default function SettingsForm() {
               </Alert>
             )}
 
-            {/* 默认密钥类型设置 - 这个设置会被API密钥添加功能使用 */}
             <div className="space-y-2">
               <Label htmlFor="defaultKeyType">{t("settings.defaultKeyType")}</Label>
               <Select value={defaultKeyType} onValueChange={setDefaultKeyType}>
@@ -422,4 +375,3 @@ export default function SettingsForm() {
     </Tabs>
   )
 }
-

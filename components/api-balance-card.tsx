@@ -6,8 +6,23 @@ import { Button } from "@/components/ui/button"
 import { ExternalLink, RefreshCw, AlertCircle, CheckCircle, XCircle, TestTube } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { apiKeyStorage } from "@/lib/storage"
-import { testAndCacheConnection, getCachedTestResult, getRechargeUrl } from "@/lib/api-connection"
+import { api } from "@/lib/api-client"
+
+// API密钥类型（本地定义，不再依赖旧 storage）
+interface ApiKey {
+  id: number
+  userId: number
+  name: string
+  key: string
+  type: "apikey" | "complex"
+  provider: string
+  rechargeUrl?: string
+  appId?: string
+  secretKey?: string
+  baseUrl: string
+  createdAt: string
+  lastUsed: string
+}
 
 // API状态信息类型
 interface ApiStatusInfo {
@@ -18,7 +33,37 @@ interface ApiStatusInfo {
   message: string
   testedAt: string
   url: string
-  latency: number // 新增延迟字段
+  latency: number
+}
+
+// 连接测试结果类型
+interface ConnectionTestResult {
+  status: number
+  message: string
+  testedAt: string
+  latency: number
+}
+
+// 获取充值URL
+function getRechargeUrl(provider: string): string {
+  switch (provider) {
+    case "OpenAI":
+      return "https://platform.openai.com/account/billing/overview"
+    case "Anthropic":
+      return "https://console.anthropic.com/account/billing"
+    case "Baidu":
+      return "https://console.bce.baidu.com/billing/#/billing/cbm/recharge"
+    case "Google":
+      return "https://console.cloud.google.com/billing"
+    case "Meta":
+      return "https://llama-api.meta.com/billing"
+    case "Mistral":
+      return "https://console.mistral.ai/billing/"
+    case "Cohere":
+      return "https://dashboard.cohere.com/account/billing"
+    default:
+      return "#"
+  }
 }
 
 export default function ApiStatusCard() {
@@ -32,23 +77,40 @@ export default function ApiStatusCard() {
   useEffect(() => {
     const fetchApiStatuses = async () => {
       try {
-        // 获取用户的API密钥
-        const apiKeys = apiKeyStorage.getApiKeysByUserId(1)
+        const data = await api.get<{ keys: ApiKey[] }>("/keys")
+        const apiKeys = data.keys
 
-        // 初始化状态数组
         const statusesPromises = apiKeys.map(async (key) => {
-          // 跳过自定义API
           if (key.provider === "Custom") return null
 
-          // 尝试从缓存获取测试结果
-          let testResult = getCachedTestResult(key.id)
+          // 尝试从 API 缓存获取测试结果
+          let testResult: ConnectionTestResult | null = null
+          try {
+            const cacheData = await api.get<{ result: ConnectionTestResult | null }>(
+              `/test-connection?keyId=${key.id}`,
+            )
+            testResult = cacheData.result
+          } catch {
+            // 无缓存
+          }
 
           // 如果没有缓存结果，进行测试
           if (!testResult) {
-            testResult = await testAndCacheConnection(key)
+            try {
+              const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
+                keyId: key.id,
+              })
+              testResult = testData.result
+            } catch {
+              testResult = {
+                status: 0,
+                message: "连接失败",
+                testedAt: new Date().toISOString(),
+                latency: 0,
+              }
+            }
           }
 
-          // 使用API密钥中的充值URL，如果没有则使用通过provider获取的默认URL
           const rechargeUrl = key.rechargeUrl || getRechargeUrl(key.provider)
 
           return {
@@ -59,11 +121,10 @@ export default function ApiStatusCard() {
             message: testResult.message,
             testedAt: testResult.testedAt,
             url: rechargeUrl,
-            latency: testResult.latency || 0, // 添加延迟信息，默认为0
+            latency: testResult.latency || 0,
           }
         })
 
-        // 等待所有测试完成
         const statuses = (await Promise.all(statusesPromises)).filter(Boolean) as ApiStatusInfo[]
         setApiStatuses(statuses)
         setLoading(false)
@@ -85,31 +146,30 @@ export default function ApiStatusCard() {
   const refreshAllStatuses = async () => {
     setLoading(true)
     try {
-      const apiKeys = apiKeyStorage.getApiKeysByUserId(1)
+      const data = await api.get<{ keys: ApiKey[] }>("/keys")
+      const apiKeys = data.keys
 
       const statusesPromises = apiKeys.map(async (key) => {
-        // 跳过自定义API
         if (key.provider === "Custom") return null
 
         try {
-          // 进行新的测试并缓存结果
-          const testResult = await testAndCacheConnection(key)
+          const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
+            keyId: key.id,
+          })
 
-          // 使用API密钥中的充值URL，如果没有则使用通过provider获取的默认URL
           const rechargeUrl = key.rechargeUrl || getRechargeUrl(key.provider)
 
           return {
             id: key.id,
             provider: key.provider,
             name: key.name,
-            status: testResult.status,
-            message: testResult.message,
-            testedAt: testResult.testedAt,
+            status: testData.result.status,
+            message: testData.result.message,
+            testedAt: testData.result.testedAt,
             url: rechargeUrl,
-            latency: testResult.latency || 0, // 添加延迟信息，默认为0
+            latency: testData.result.latency || 0,
           }
-        } catch (error) {
-          // 单个API测试失败，返回失败状态但不中断整体刷新
+        } catch {
           return {
             id: key.id,
             provider: key.provider,
@@ -146,40 +206,34 @@ export default function ApiStatusCard() {
 
   // 测试单个API
   const testSingleApi = async (apiKeyId: number) => {
-    // 设置当前API为测试中状态
     setTestingKeys((prev) => ({ ...prev, [apiKeyId]: true }))
 
     try {
-      const apiKey = apiKeyStorage.getApiKeyById(apiKeyId, 1)
-      if (!apiKey) {
-        throw new Error(t("error.notFound"))
-      }
+      const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
+        keyId: apiKeyId,
+      })
 
-      // 进行新的测试并缓存结果
-      const testResult = await testAndCacheConnection(apiKey)
-
-      // 更新状态列表
       setApiStatuses((prev) =>
         prev.map((status) =>
           status.id === apiKeyId
             ? {
                 ...status,
-                status: testResult.status,
-                message: testResult.message,
-                testedAt: testResult.testedAt,
-                latency: testResult.latency || 0, // 更新延迟信息
+                status: testData.result.status,
+                message: testData.result.message,
+                testedAt: testData.result.testedAt,
+                latency: testData.result.latency || 0,
               }
             : status,
         ),
       )
 
+      const statusName = apiStatuses.find((s) => s.id === apiKeyId)?.name || ""
       toast({
         title: t("api.status.test"),
-        description: `${apiKey.name}: ${testResult.message}`,
+        description: `${statusName}: ${testData.result.message}`,
       })
     } catch (error) {
       console.error("测试API失败:", error)
-      // 更新状态列表，显示连接失败
       setApiStatuses((prev) =>
         prev.map((status) =>
           status.id === apiKeyId
@@ -194,7 +248,6 @@ export default function ApiStatusCard() {
         ),
       )
     } finally {
-      // 清除测试中状态
       setTestingKeys((prev) => ({ ...prev, [apiKeyId]: false }))
     }
   }
@@ -222,7 +275,6 @@ export default function ApiStatusCard() {
   const findWorstApi = () => {
     if (apiStatuses.length === 0) return null
 
-    // 优先级：连接异常 > 认证失败 > 请求频率限制 > 连接正常
     const priorityOrder: Record<string, number> = {
       [t("api.status.normal")]: 3,
       [t("api.status.rateLimited")]: 2,
@@ -235,11 +287,8 @@ export default function ApiStatusCard() {
     }
 
     return apiStatuses.reduce((worst, current) => {
-      // 获取消息的优先级，默认为最低优先级
       const worstPriority = priorityOrder[worst.message.split(" ")[0]] || 0
       const currentPriority = priorityOrder[current.message.split(" ")[0]] || 0
-
-      // 优先级低的（数字小的）更差
       return currentPriority < worstPriority ? current : worst
     }, apiStatuses[0])
   }
@@ -279,18 +328,14 @@ export default function ApiStatusCard() {
             <Button
               className="bg-green-600 hover:bg-green-700"
               onClick={() => {
-                // 找出状态最差的API
                 const worstApi = findWorstApi()
                 if (!worstApi) return
 
-                // 确保URL是完整的URL格式
                 let url = worstApi.url
-                // 如果URL不包含协议前缀，添加https://
                 if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
                   url = "https://" + url
                 }
 
-                // 使用完整URL直接打开新窗口
                 window.open(url, "_blank", "noopener,noreferrer")
 
                 toast({
@@ -330,13 +375,10 @@ export default function ApiStatusCard() {
                       size="sm"
                       className="h-7 px-2"
                       onClick={() => {
-                        // 确保URL是完整的URL格式
                         let url = status.url
-                        // 如果URL不包含协议前缀，添加https://
                         if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
                           url = "https://" + url
                         }
-                        // 使用完整URL直接打开新窗口
                         window.open(url, "_blank", "noopener,noreferrer")
                       }}
                     >
@@ -393,4 +435,3 @@ export default function ApiStatusCard() {
     </Card>
   )
 }
-

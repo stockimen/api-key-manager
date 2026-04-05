@@ -21,10 +21,16 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+next-build.log
+next-dev.log
+pages-build.log
+pages-build-elevated.log
+tailwind-debug.css
 
 # local env files
 .env*.local
 .env
+/.dev-data/
 
 # vercel
 .vercel

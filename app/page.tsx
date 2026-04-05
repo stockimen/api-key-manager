@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import LanguageSwitcher from "@/components/language-switcher"
 import { LanguageProvider } from "@/lib/i18n/language-context"
 import Link from "next/link"
-import { Mail, Key, Shield, BarChart, Settings, Github } from "lucide-react"
+import { Key, Shield, BarChart, Settings } from "lucide-react"
 
 export default function Home() {
   return (
@@ -90,32 +90,12 @@ function HomeContent() {
         </div>
       </div>
 
-      {/* 联系方式 */}
-      <div className="py-12 bg-gray-50 dark:bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">{t("home.contact.title")}</h2>
-          <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">{t("home.contact.subtitle")}</p>
-          <div className="mt-6 inline-flex items-center justify-center space-x-2 text-primary">
-            <Mail className="h-5 w-5" />
-            <span>nanmeng@nanmengtech.com</span>
-          </div>
-        </div>
-      </div>
-
       {/* 页脚 */}
       <footer className="bg-white dark:bg-gray-950 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <a
-              href="https://github.com/randomAndre/api-key-manager"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center text-primary hover:text-primary/80 transition-colors"
-            >
-              <Github className="h-5 w-5 mr-2" />
-              <span>GitHub</span>
-            </a>
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            API Key Manager &copy; {new Date().getFullYear()}
+          </p>
         </div>
       </footer>
     </div>

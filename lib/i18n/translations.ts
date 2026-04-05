@@ -283,7 +283,7 @@ export const zhCN: Translations = {
   "common.language": "语言",
 
   // 应用相关
-  "app.title": "南梦API秘钥管理",
+  "app.title": "API Key Manager",
   "app.description": "安全管理各种 AI 模型的 API 密钥",
 
   // 登录相关
@@ -478,7 +478,7 @@ export const enUS: Translations = {
   "common.language": "Language",
 
   // 应用相关
-  "app.title": "NanMeng API Key Manager",
+  "app.title": "API Key Manager",
   "app.description": "Securely manage API keys for various AI models",
 
   // 登录相关
