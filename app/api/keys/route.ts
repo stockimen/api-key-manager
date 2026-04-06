@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard } = body
 
     if (!name || !key || !provider) {
       return NextResponse.json({ error: "名称、密钥和提供商为必填项" }, { status: 400 })
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       appId: type === "complex" ? appId : undefined,
       secretKey: type === "complex" ? secretKey : undefined,
       baseUrl: baseUrl || "",
+      monitorOnDashboard: monitorOnDashboard === true,
     })
 
     return NextResponse.json({ key: newKey }, { status: 201 })

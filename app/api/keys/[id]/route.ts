@@ -19,7 +19,12 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const updated = await apiKeysKV.updateKey(session.userId, keyId, body)
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard } = body
+    const updateData = Object.fromEntries(
+      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard })
+        .filter(([_, v]) => v !== undefined)
+    )
+    const updated = await apiKeysKV.updateKey(session.userId, keyId, updateData)
 
     if (!updated) {
       return NextResponse.json({ error: "密钥不存在" }, { status: 404 })

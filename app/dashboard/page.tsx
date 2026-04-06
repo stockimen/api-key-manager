@@ -7,21 +7,7 @@ import { useState, useEffect } from "react"
 import { api } from "@/lib/api-client"
 import { Progress } from "@/components/ui/progress"
 import { Activity } from "lucide-react"
-
-interface ApiKey {
-  id: number
-  userId: number
-  name: string
-  key: string
-  type: "apikey" | "complex"
-  provider: string
-  rechargeUrl?: string
-  appId?: string
-  secretKey?: string
-  baseUrl: string
-  createdAt: string
-  lastUsed: string
-}
+import type { ApiKey } from "@/lib/kv"
 
 interface ConnectionTestResult {
   status: number
@@ -29,8 +15,6 @@ interface ConnectionTestResult {
   testedAt: string
   latency: number
 }
-
-const MAX_VISIBLE_TESTABLE_KEYS = 10
 
 function isAvailableResult(result: ConnectionTestResult | null): boolean {
   if (!result) {
@@ -41,7 +25,7 @@ function isAvailableResult(result: ConnectionTestResult | null): boolean {
 }
 
 function getVisibleTestableKeys(keys: ApiKey[]): ApiKey[] {
-  return keys.filter((key) => key.provider !== "Custom").slice(0, MAX_VISIBLE_TESTABLE_KEYS)
+  return keys.filter((key) => key.monitorOnDashboard && key.provider !== "Custom")
 }
 
 export default function DashboardPage() {

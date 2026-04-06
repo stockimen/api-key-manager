@@ -30,8 +30,14 @@ export interface ApiKey {
   appId?: string
   secretKey?: string
   baseUrl: string
+  monitorOnDashboard: boolean
   createdAt: string
   lastUsed: string
+}
+
+// 存储层类型（旧数据可能缺少 monitorOnDashboard）
+type StoredApiKey = Omit<ApiKey, "monitorOnDashboard"> & {
+  monitorOnDashboard?: boolean
 }
 
 // 系统设置类型
@@ -170,10 +176,18 @@ export const userKV = {
 
 // ========== API 密钥操作 ==========
 
+function normalizeApiKey(apiKey: StoredApiKey): ApiKey {
+  return {
+    ...apiKey,
+    monitorOnDashboard: apiKey.monitorOnDashboard !== false,
+  }
+}
+
 async function getStoredApiKeys(userId: number): Promise<ApiKey[]> {
   const kv = getKV()
   const data = await kv.get(`keys:${userId}`)
-  return data ? (JSON.parse(data) as ApiKey[]) : []
+  if (!data) return []
+  return (JSON.parse(data) as StoredApiKey[]).map(normalizeApiKey)
 }
 
 async function decryptApiKeyRecord(apiKey: ApiKey, encryptionKey: string): Promise<ApiKey> {
@@ -211,11 +225,11 @@ export const apiKeysKV = {
   async addKey(userId: number, keyData: Omit<ApiKey, "id" | "createdAt" | "lastUsed">): Promise<ApiKey> {
     const kv = getKV()
     const encKey = getEncryptionKey()
-    const raw = await kv.get(`keys:${userId}`)
-    const keys: ApiKey[] = raw ? JSON.parse(raw) : []
+    const keys = await getStoredApiKeys(userId)
 
     const newKey: ApiKey = {
       ...keyData,
+      monitorOnDashboard: keyData.monitorOnDashboard === true,
       id: keys.length > 0 ? Math.max(...keys.map((k) => k.id)) + 1 : 1,
       createdAt: new Date().toISOString().split("T")[0],
       lastUsed: "-",
@@ -236,9 +250,7 @@ export const apiKeysKV = {
   async updateKey(userId: number, keyId: number, data: Partial<ApiKey>): Promise<ApiKey | null> {
     const kv = getKV()
     const encKey = getEncryptionKey()
-    const raw = await kv.get(`keys:${userId}`)
-    if (!raw) return null
-    const keys: ApiKey[] = JSON.parse(raw)
+    const keys = await getStoredApiKeys(userId)
     const index = keys.findIndex((k) => k.id === keyId)
     if (index === -1) return null
 
@@ -266,9 +278,7 @@ export const apiKeysKV = {
 
   async deleteKey(userId: number, keyId: number): Promise<boolean> {
     const kv = getKV()
-    const raw = await kv.get(`keys:${userId}`)
-    if (!raw) return false
-    const keys: ApiKey[] = JSON.parse(raw)
+    const keys = await getStoredApiKeys(userId)
     const index = keys.findIndex((k) => k.id === keyId)
     if (index === -1) return false
     keys.splice(index, 1)

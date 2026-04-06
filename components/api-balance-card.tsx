@@ -7,21 +7,7 @@ import { RefreshCw, CheckCircle, XCircle, TestTube } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
-
-interface ApiKey {
-  id: number
-  userId: number
-  name: string
-  key: string
-  type: "apikey" | "complex"
-  provider: string
-  rechargeUrl?: string
-  appId?: string
-  secretKey?: string
-  baseUrl: string
-  createdAt: string
-  lastUsed: string
-}
+import type { ApiKey } from "@/lib/kv"
 
 interface ApiStatusInfo {
   id: number
@@ -43,8 +29,6 @@ interface ConnectionTestResult {
 
 type StatusLevel = "success" | "error"
 
-const MAX_VISIBLE_TESTABLE_KEYS = 10
-
 function normalizeExternalUrl(url: string | undefined): string {
   const trimmed = url?.trim() || ""
   if (!trimmed) {
@@ -55,7 +39,7 @@ function normalizeExternalUrl(url: string | undefined): string {
 }
 
 function getVisibleTestableKeys(keys: ApiKey[]): ApiKey[] {
-  return keys.filter((key) => key.provider !== "Custom").slice(0, MAX_VISIBLE_TESTABLE_KEYS)
+  return keys.filter((key) => key.monitorOnDashboard && key.provider !== "Custom")
 }
 
 async function getCachedStatusForKey(key: ApiKey, fallbackMessage: string): Promise<ApiStatusInfo> {
@@ -95,7 +79,6 @@ export default function ApiStatusCard() {
   const [apiStatuses, setApiStatuses] = useState<ApiStatusInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [testingKeys, setTestingKeys] = useState<Record<number, boolean>>({})
-  const [hiddenTestableCount, setHiddenTestableCount] = useState(0)
 
   const getStatusLevel = (message: string): StatusLevel => {
     if (message.includes("模型列表可获取") || message.includes("链接可访问")) {
@@ -110,8 +93,6 @@ export default function ApiStatusCard() {
       try {
         const data = await api.get<{ keys: ApiKey[] }>("/keys")
         const visibleKeys = getVisibleTestableKeys(data.keys)
-        const totalTestableCount = data.keys.filter((key) => key.provider !== "Custom").length
-        setHiddenTestableCount(Math.max(0, totalTestableCount - visibleKeys.length))
 
         const statuses = await Promise.all(
           visibleKeys.map((key) => getCachedStatusForKey(key, t("api.status.notTested"))),
@@ -138,8 +119,6 @@ export default function ApiStatusCard() {
     try {
       const data = await api.get<{ keys: ApiKey[] }>("/keys")
       const visibleKeys = getVisibleTestableKeys(data.keys)
-      const totalTestableCount = data.keys.filter((key) => key.provider !== "Custom").length
-      setHiddenTestableCount(Math.max(0, totalTestableCount - visibleKeys.length))
 
       const statuses = await Promise.all(
         visibleKeys.map(async (key) => {
@@ -288,11 +267,6 @@ export default function ApiStatusCard() {
           <div>
             <div className="text-lg font-medium">{t("api.status.connectionTest")}</div>
             <p className="text-xs text-muted-foreground">{t("api.status.urlTestDescription")}</p>
-            {hiddenTestableCount > 0 && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t("api.status.limitNotice", { count: hiddenTestableCount, max: MAX_VISIBLE_TESTABLE_KEYS })}
-              </p>
-            )}
           </div>
 
           <div className="space-y-3 mt-4">

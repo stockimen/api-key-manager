@@ -186,6 +186,11 @@ export type TranslationKey =
   | "apiKeys.rechargeUrl"
   | "apiKeys.rechargeUrlPlaceholder"
   | "apiKeys.rechargeUrlDescription"
+  | "apiKeys.monitorOnDashboard"
+  | "apiKeys.monitorOnDashboardDescription"
+  | "apiKeys.dashboardMonitoring"
+  | "apiKeys.monitoringEnabled"
+  | "apiKeys.monitoringDisabled"
   | "error.connectionFailed"
   | "error.testFailed"
   | "error.networkError"
@@ -206,7 +211,6 @@ export type TranslationKey =
   | "api.status.latency"
   | "api.status.lastTested"
   | "api.status.noApiKeys"
-  | "api.status.limitNotice"
   | "api.status.openLink"
   | "api.status.loading"
   | "api.status.autoUpdate"
@@ -320,7 +324,7 @@ export const zhCN: Translations = {
   "dashboard.apiAvailabilityNormal": "所有API服务运行正常",
   "dashboard.apiAvailabilityDelayed": "部分API服务可能存在延迟",
   "dashboard.apiAvailabilityIssues": "部分API服务不可用",
-  "dashboard.apiAvailabilityHint": "首页可用率基于前 10 个可测试密钥的最近状态计算。",
+  "dashboard.apiAvailabilityHint": "首页可用率基于已加入首页检测的密钥的最近状态计算。",
   "dashboard.recharge": "充值",
 
   // API密钥相关
@@ -363,6 +367,11 @@ export const zhCN: Translations = {
   "apiKeys.rechargeUrl": "充值 URL",
   "apiKeys.rechargeUrlPlaceholder": "https://example.com",
   "apiKeys.rechargeUrlDescription": "方便在仪表盘处进行余额的充值，请输入完整URL",
+  "apiKeys.monitorOnDashboard": "加入首页检测",
+  "apiKeys.monitorOnDashboardDescription": "开启后，该密钥将出现在首页的连接状态检测中",
+  "apiKeys.dashboardMonitoring": "首页检测",
+  "apiKeys.monitoringEnabled": "已启用",
+  "apiKeys.monitoringDisabled": "未启用",
 
   // 设置相关
   "settings.title": "系统设置",
@@ -422,7 +431,6 @@ export const zhCN: Translations = {
   "api.status.latency": "延迟",
   "api.status.lastTested": "最后测试",
   "api.status.noApiKeys": "没有找到API密钥，请先添加API密钥",
-  "api.status.limitNotice": "首页仅展示前 {max} 个可测试密钥，另有 {count} 个未在此处展示。",
   "api.status.openLink": "打开链接",
   "api.status.loading": "正在加载API状态...",
   "api.status.autoUpdate": '连接状态每天自动更新一次，点击"测试"按钮可立即测试单个API的连接状态',
@@ -532,7 +540,7 @@ export const enUS: Translations = {
   "dashboard.apiAvailabilityNormal": "All API services are running normally",
   "dashboard.apiAvailabilityDelayed": "Some API services may experience delays",
   "dashboard.apiAvailabilityIssues": "Some API services are unavailable",
-  "dashboard.apiAvailabilityHint": "Homepage availability is calculated from the latest status of the first 10 testable keys.",
+  "dashboard.apiAvailabilityHint": "Homepage availability is calculated from the latest status of keys added to dashboard monitoring.",
   "dashboard.recharge": "Recharge",
 
   // API密钥相关
@@ -577,6 +585,11 @@ export const enUS: Translations = {
   "apiKeys.rechargeUrl": "Recharge URL",
   "apiKeys.rechargeUrlPlaceholder": "https://example.com",
   "apiKeys.rechargeUrlDescription": "Convenient for recharging balance from the dashboard, please enter complete URL",
+  "apiKeys.monitorOnDashboard": "Monitor on Dashboard",
+  "apiKeys.monitorOnDashboardDescription": "When enabled, this key will appear in the dashboard connection status monitoring",
+  "apiKeys.dashboardMonitoring": "Dashboard Monitoring",
+  "apiKeys.monitoringEnabled": "Enabled",
+  "apiKeys.monitoringDisabled": "Disabled",
 
   // 设置相关
   "settings.title": "System Settings",
@@ -636,7 +649,6 @@ export const enUS: Translations = {
   "api.status.latency": "Latency",
   "api.status.lastTested": "Last Tested",
   "api.status.noApiKeys": "No API keys found, please add API keys first",
-  "api.status.limitNotice": "The homepage shows only the first {max} testable keys. {count} more are not shown here.",
   "api.status.openLink": "Open Link",
   "api.status.loading": "Loading API status...",
   "api.status.autoUpdate":

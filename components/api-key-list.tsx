@@ -18,24 +18,11 @@ import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Plus, Pencil, Trash2, Copy, Check } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
-
-interface ApiKey {
-  id: number
-  userId: number
-  name: string
-  key: string
-  type: "apikey" | "complex"
-  provider: string
-  rechargeUrl?: string
-  appId?: string
-  secretKey?: string
-  baseUrl: string
-  createdAt: string
-  lastUsed: string
-}
+import type { ApiKey } from "@/lib/kv"
 
 const DEFAULT_API_URLS: Record<string, string> = {
   OpenAI: "https://api.openai.com/v1",
@@ -75,6 +62,7 @@ export default function ApiKeyList() {
     appId: "",
     secretKey: "",
     baseUrl: "",
+    monitorOnDashboard: false,
   })
 
   const loadKeys = useCallback(async () => {
@@ -172,11 +160,13 @@ export default function ApiKeyList() {
         setNewKey({
           name: "", key: "", type: settings.settings.defaultKeyType,
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
+          monitorOnDashboard: false,
         })
       } catch {
         setNewKey({
           name: "", key: "", type: "apikey",
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
+          monitorOnDashboard: false,
         })
       }
       setFormErrors({})
@@ -204,6 +194,7 @@ export default function ApiKeyList() {
         secretKey: editingKey.secretKey,
         baseUrl: editingKey.baseUrl,
         rechargeUrl: editingKey.rechargeUrl,
+        monitorOnDashboard: editingKey.monitorOnDashboard,
       })
 
       setApiKeys((prev) => prev.map((k) => (k.id === editingKey.id ? data.key : k)))
@@ -338,6 +329,17 @@ export default function ApiKeyList() {
                       <Input id="baseUrl" placeholder="https://api.example.com/v1/models" value={newKey.baseUrl} onChange={(e) => setNewKey({ ...newKey, baseUrl: e.target.value })} />
                       <p className="text-xs text-muted-foreground">{t("apiKeys.baseUrlDescription")}</p>
                     </div>
+                    <div className="grid gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="monitor-add"
+                          checked={newKey.monitorOnDashboard}
+                          onCheckedChange={(checked) => setNewKey({ ...newKey, monitorOnDashboard: checked })}
+                        />
+                        <Label htmlFor="monitor-add" className="cursor-pointer">{t("apiKeys.monitorOnDashboard")}</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("apiKeys.monitorOnDashboardDescription")}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -401,6 +403,17 @@ export default function ApiKeyList() {
                       <Label>{t("apiKeys.baseUrl")}</Label>
                       <Input placeholder="https://api.example.com/v1/models" value={editingKey.baseUrl || ""} onChange={(e) => setEditingKey({ ...editingKey, baseUrl: e.target.value })} />
                     </div>
+                    <div className="grid gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="monitor-edit"
+                          checked={editingKey.monitorOnDashboard}
+                          onCheckedChange={(checked) => setEditingKey({ ...editingKey, monitorOnDashboard: checked })}
+                        />
+                        <Label htmlFor="monitor-edit" className="cursor-pointer">{t("apiKeys.monitorOnDashboard")}</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t("apiKeys.monitorOnDashboardDescription")}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -459,6 +472,7 @@ export default function ApiKeyList() {
                 <TableHead>{t("common.key")}</TableHead>
                 <TableHead>{t("apiKeys.baseUrl")}</TableHead>
                 <TableHead>{t("common.created")}</TableHead>
+                <TableHead>{t("apiKeys.dashboardMonitoring")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -519,6 +533,11 @@ export default function ApiKeyList() {
                     </div>
                   </TableCell>
                   <TableCell>{apiKey.createdAt}</TableCell>
+                  <TableCell>
+                    <Badge variant={apiKey.monitorOnDashboard ? "default" : "outline"}>
+                      {apiKey.monitorOnDashboard ? t("apiKeys.monitoringEnabled") : t("apiKeys.monitoringDisabled")}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
                       <Button variant="ghost" size="icon" onClick={() => handleEditKey(apiKey)}><Pencil className="h-4 w-4" /></Button>
