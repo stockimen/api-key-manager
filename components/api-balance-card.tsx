@@ -58,7 +58,7 @@ function getVisibleTestableKeys(keys: ApiKey[]): ApiKey[] {
   return keys.filter((key) => key.provider !== "Custom").slice(0, MAX_VISIBLE_TESTABLE_KEYS)
 }
 
-async function loadStatusForKey(key: ApiKey, fallbackMessage: string): Promise<ApiStatusInfo> {
+async function getCachedStatusForKey(key: ApiKey, fallbackMessage: string): Promise<ApiStatusInfo> {
   let testResult: ConnectionTestResult | null = null
 
   try {
@@ -69,18 +69,11 @@ async function loadStatusForKey(key: ApiKey, fallbackMessage: string): Promise<A
   }
 
   if (!testResult) {
-    try {
-      const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
-        keyId: key.id,
-      })
-      testResult = testData.result
-    } catch {
-      testResult = {
-        status: 0,
-        message: fallbackMessage,
-        testedAt: new Date().toISOString(),
-        latency: 0,
-      }
+    testResult = {
+      status: 0,
+      message: fallbackMessage,
+      testedAt: new Date().toISOString(),
+      latency: 0,
     }
   }
 
@@ -121,7 +114,7 @@ export default function ApiStatusCard() {
         setHiddenTestableCount(Math.max(0, totalTestableCount - visibleKeys.length))
 
         const statuses = await Promise.all(
-          visibleKeys.map((key) => loadStatusForKey(key, "无法连接到服务器")),
+          visibleKeys.map((key) => getCachedStatusForKey(key, t("api.status.notTested"))),
         )
 
         setApiStatuses(statuses)
@@ -275,6 +268,7 @@ export default function ApiStatusCard() {
     if (message.includes("连接超时")) return t("error.timeout")
     if (message.includes("未知错误")) return t("error.unknownError")
     if (message.includes("连接失败")) return t("error.connectionFailed")
+    if (message.includes("未测试")) return t("api.status.notTested")
     return message
   }
 
@@ -348,7 +342,7 @@ export default function ApiStatusCard() {
                     </span>
                     {status.latency > 0 && (
                       <span className="text-xs ml-2 text-muted-foreground">
-                        {t("api.status.latency")}:{" "}
+                        {t("api.status.latency")}: {" "}
                         <span
                           className={`font-medium ${status.latency > 1000 ? "text-red-600" : status.latency > 500 ? "text-amber-600" : "text-green-600"}`}
                         >

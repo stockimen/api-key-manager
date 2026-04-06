@@ -219,6 +219,7 @@ export type TranslationKey =
   | "api.status.authFailed"
   | "api.status.rateLimited"
   | "api.status.connectionError"
+  | "api.status.notTested"
   | "home.hero.subtitle"
   | "home.hero.cta"
   | "home.features.title"
@@ -434,6 +435,7 @@ export const zhCN: Translations = {
   "api.status.authFailed": "认证失败",
   "api.status.rateLimited": "请求频率限制",
   "api.status.connectionError": "连接异常",
+  "api.status.notTested": "未测试",
   "api.status.urlTestDescription": "系统会先测试链接是否可访问，并在支持时尝试通过 API URL 获取模型列表。",
 
   // 首页相关
@@ -649,6 +651,7 @@ export const enUS: Translations = {
   "api.status.authFailed": "Authentication Failed",
   "api.status.rateLimited": "Rate Limited",
   "api.status.connectionError": "Connection Error",
+  "api.status.notTested": "Not Tested",
   "api.status.urlTestDescription":
     "The system first checks whether the URL is reachable and then tries to fetch the model list through the API URL when supported.",
 

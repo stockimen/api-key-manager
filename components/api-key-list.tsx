@@ -112,7 +112,7 @@ export default function ApiKeyList() {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
     return apiKeys.filter((apiKey) => {
-      const matchesProvider = providerFilter === "all" || apiKey.provider === providerFilter
+      const matchesProvider = providerFilter === "all" || apiKey.provider.trim() === providerFilter
       if (!matchesProvider) {
         return false
       }
