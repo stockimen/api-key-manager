@@ -130,13 +130,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <LanguageSwitcher />
             </div>
           </div>
-          <nav className="flex-1 space-y-1.5 px-2 py-3">
+          <nav className="flex-1 space-y-1.5 py-3">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`
-                  flex items-center rounded-md px-3 py-2.5 text-sm font-medium
+                  flex items-center rounded-md px-3 py-1.5 text-sm font-medium
                   ${pathname === item.href ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100"}
                 `}
               >
