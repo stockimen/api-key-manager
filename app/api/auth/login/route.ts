@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+﻿import { NextRequest, NextResponse } from "next/server"
 import {
   createSessionCookie,
   ensureSingleAdminMigration,
@@ -20,10 +20,6 @@ function getClientIdentifier(request: NextRequest, username: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!(await isSetupComplete())) {
-      return NextResponse.json({ error: "系统尚未初始化" }, { status: 503 })
-    }
-
     const body = await request.json()
     const { username, password } = body as { username?: string; password?: string }
 
@@ -39,7 +35,12 @@ export async function POST(request: NextRequest) {
 
     const migratedUser = await ensureSingleAdminMigration(username)
     const user = migratedUser ?? (await userKV.getByUsername(username))
+
     if (!user) {
+      if (!(await isSetupComplete())) {
+        return NextResponse.json({ error: "系统尚未初始化" }, { status: 503 })
+      }
+
       await loginRateLimitKV.increment(rateLimitIdentifier)
       return NextResponse.json({ error: "用户名或密码错误" }, { status: 401 })
     }

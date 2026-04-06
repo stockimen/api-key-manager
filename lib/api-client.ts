@@ -66,14 +66,8 @@ export async function apiClient<T>(endpoint: string, options: ApiOptions = {}): 
         ? String((data as { error?: unknown }).error ?? "请求失败")
         : `请求失败 (${response.status})`
 
-    if (typeof window !== "undefined") {
-      if (response.status === 401) {
-        window.dispatchEvent(new CustomEvent("auth:unauthorized"))
-      }
-
-      if (response.status === 503) {
-        window.dispatchEvent(new CustomEvent("app:setup-required"))
-      }
+    if (typeof window !== "undefined" && response.status === 401) {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"))
     }
 
     throw new ApiError(errorMessage, response.status, data)
@@ -89,3 +83,4 @@ export const api = {
   put: <T>(endpoint: string, body: unknown) => apiClient<T>(endpoint, { method: "PUT", body }),
   delete: <T>(endpoint: string) => apiClient<T>(endpoint, { method: "DELETE" }),
 }
+

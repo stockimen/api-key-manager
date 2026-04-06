@@ -17,8 +17,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "keyId 为必填项" }, { status: 400 })
     }
 
-    const keys = await apiKeysKV.getByUserId(session.userId)
-    const apiKey = keys.find((k) => k.id === keyId)
+    const apiKey = await apiKeysKV.getById(session.userId, keyId)
     if (!apiKey) {
       return NextResponse.json({ error: "密钥不存在" }, { status: 404 })
     }
@@ -47,9 +46,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "keyId 为必填项" }, { status: 400 })
     }
 
-    const keys = await apiKeysKV.getByUserId(session.userId)
-    const apiKey = keys.find((k) => k.id === keyId)
-    if (!apiKey) {
+    const exists = await apiKeysKV.exists(session.userId, keyId)
+    if (!exists) {
       return NextResponse.json({ error: "密钥不存在" }, { status: 404 })
     }
 

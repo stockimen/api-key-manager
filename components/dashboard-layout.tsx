@@ -56,15 +56,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       router.replace("/login")
     }
 
-    const handleSetupRequired = () => {
-      setAuthState("setup-required")
-    }
-
     window.addEventListener("auth:unauthorized", handleUnauthorized)
-    window.addEventListener("app:setup-required", handleSetupRequired)
     return () => {
       window.removeEventListener("auth:unauthorized", handleUnauthorized)
-      window.removeEventListener("app:setup-required", handleSetupRequired)
     }
   }, [router])
 
@@ -184,3 +178,4 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     </div>
   )
 }
+

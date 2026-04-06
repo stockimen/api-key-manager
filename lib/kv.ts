@@ -170,21 +170,42 @@ export const userKV = {
 
 // ========== API 密钥操作 ==========
 
+async function getStoredApiKeys(userId: number): Promise<ApiKey[]> {
+  const kv = getKV()
+  const data = await kv.get(`keys:${userId}`)
+  return data ? (JSON.parse(data) as ApiKey[]) : []
+}
+
+async function decryptApiKeyRecord(apiKey: ApiKey, encryptionKey: string): Promise<ApiKey> {
+  return {
+    ...apiKey,
+    key: apiKey.key ? await decrypt(apiKey.key, encryptionKey) : "",
+    appId: apiKey.appId ? await decrypt(apiKey.appId, encryptionKey) : undefined,
+    secretKey: apiKey.secretKey ? await decrypt(apiKey.secretKey, encryptionKey) : undefined,
+  }
+}
+
 export const apiKeysKV = {
   async getByUserId(userId: number): Promise<ApiKey[]> {
-    const kv = getKV()
     const encKey = getEncryptionKey()
-    const data = await kv.get(`keys:${userId}`)
-    if (!data) return []
-    const keys: ApiKey[] = JSON.parse(data)
-    return await Promise.all(
-      keys.map(async (k) => ({
-        ...k,
-        key: k.key ? await decrypt(k.key, encKey) : "",
-        appId: k.appId ? await decrypt(k.appId, encKey) : undefined,
-        secretKey: k.secretKey ? await decrypt(k.secretKey, encKey) : undefined,
-      })),
-    )
+    const keys = await getStoredApiKeys(userId)
+    return Promise.all(keys.map((key) => decryptApiKeyRecord(key, encKey)))
+  },
+
+  async getById(userId: number, keyId: number): Promise<ApiKey | null> {
+    const encKey = getEncryptionKey()
+    const keys = await getStoredApiKeys(userId)
+    const apiKey = keys.find((key) => key.id === keyId)
+    if (!apiKey) {
+      return null
+    }
+
+    return decryptApiKeyRecord(apiKey, encKey)
+  },
+
+  async exists(userId: number, keyId: number): Promise<boolean> {
+    const keys = await getStoredApiKeys(userId)
+    return keys.some((key) => key.id === keyId)
   },
 
   async addKey(userId: number, keyData: Omit<ApiKey, "id" | "createdAt" | "lastUsed">): Promise<ApiKey> {
