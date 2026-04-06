@@ -2,8 +2,10 @@
  * Cloudflare KV 存储操作
  */
 
-import { getKV, getEncryptionKey } from "./get-kv"
-import { encrypt, decrypt, hashPassword } from "./encryption"
+import { decrypt, encrypt, hashPassword } from "./encryption"
+import { getEncryptionKey, getKV, isDevelopmentEnvironment } from "./get-kv"
+
+export type UserRole = "admin" | "user"
 
 // 用户类型
 export interface User {
@@ -12,6 +14,7 @@ export interface User {
   passwordHash: string
   salt: string
   email: string
+  role: UserRole
   createdAt: string
 }
 
@@ -34,13 +37,20 @@ export interface ApiKey {
 // 系统设置类型
 export interface SystemSettings {
   defaultKeyType: "apikey" | "complex"
+  initialized: boolean
 }
 
 // 会话类型
 export interface Session {
   userId: number
   username: string
+  role: UserRole
   createdAt: string
+}
+
+export interface LoginRateLimitRecord {
+  count: number
+  firstAttemptAt: string
 }
 
 export class UserConflictError extends Error {
@@ -60,44 +70,78 @@ export interface ConnectionTestResult {
 
 const DEFAULT_SETTINGS: SystemSettings = {
   defaultKeyType: "apikey",
+  initialized: false,
 }
 
-// ========== 初始化 ==========
-
-export async function initializeDefaultData(): Promise<void> {
-  const kv = getKV()
-  const existingUser = await kv.get("user:admin")
-  if (existingUser) return
-
-  // 创建默认 admin 用户，密码为 "password"
-  const { hash: passwordHash, salt } = await hashPassword("password")
-
-  const defaultUser: User = {
-    id: 1,
-    username: "admin",
-    passwordHash,
-    salt,
-    email: "admin@example.com",
-    createdAt: new Date().toISOString().split("T")[0],
-  }
-
-  await kv.put("user:admin", JSON.stringify(defaultUser))
-  await kv.put("settings:global", JSON.stringify(DEFAULT_SETTINGS))
-}
+const SESSION_TTL = 7 * 24 * 60 * 60
+const CACHE_TTL = 24 * 60 * 60
+const LOGIN_RATE_LIMIT_TTL = 15 * 60
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 10
 
 // ========== 用户操作 ==========
+
+function normalizeRole(role: string | undefined): UserRole {
+  return role === "admin" ? "admin" : "user"
+}
+
+function normalizeUser(user: Omit<User, "role"> & { role?: string }): User {
+  return {
+    ...user,
+    role: normalizeRole(user.role),
+  }
+}
 
 export const userKV = {
   async getByUsername(username: string): Promise<User | null> {
     const kv = getKV()
     const data = await kv.get(`user:${username}`)
-    return data ? JSON.parse(data) : null
+    if (!data) {
+      return null
+    }
+
+    return normalizeUser(JSON.parse(data) as Omit<User, "role"> & { role?: string })
+  },
+
+  async getAll(): Promise<User[]> {
+    const kv = getKV()
+    const listResult = await kv.list({ prefix: "user:" })
+    const users = await Promise.all(
+      listResult.keys.map(async ({ name }) => {
+        const raw = await kv.get(name)
+        return raw ? normalizeUser(JSON.parse(raw) as Omit<User, "role"> & { role?: string }) : null
+      }),
+    )
+
+    return users.filter((user): user is User => user !== null)
+  },
+
+  async count(): Promise<number> {
+    const users = await this.getAll()
+    return users.length
+  },
+
+  async create(data: Omit<User, "id" | "createdAt">): Promise<User> {
+    const kv = getKV()
+    const users = await this.getAll()
+
+    const newUser: User = {
+      ...data,
+      role: normalizeRole(data.role),
+      id: users.length > 0 ? Math.max(...users.map((user) => user.id)) + 1 : 1,
+      createdAt: new Date().toISOString().split("T")[0],
+    }
+
+    await kv.put(`user:${newUser.username}`, JSON.stringify(newUser))
+    return newUser
   },
 
   async update(username: string, data: Partial<User>): Promise<User | null> {
     const kv = getKV()
     const user = await this.getByUsername(username)
-    if (!user) return null
+    if (!user) {
+      return null
+    }
+
     const nextUsername = typeof data.username === "string" ? data.username.trim() : user.username
 
     if (nextUsername !== username) {
@@ -107,7 +151,13 @@ export const userKV = {
       }
     }
 
-    const updated = { ...user, ...data, username: nextUsername }
+    const updated: User = {
+      ...user,
+      ...data,
+      username: nextUsername,
+      role: normalizeRole(data.role ?? user.role),
+    }
+
     await kv.put(`user:${nextUsername}`, JSON.stringify(updated))
 
     if (nextUsername !== username) {
@@ -127,14 +177,13 @@ export const apiKeysKV = {
     const data = await kv.get(`keys:${userId}`)
     if (!data) return []
     const keys: ApiKey[] = JSON.parse(data)
-    // 解密密钥字段
     return await Promise.all(
       keys.map(async (k) => ({
         ...k,
         key: k.key ? await decrypt(k.key, encKey) : "",
         appId: k.appId ? await decrypt(k.appId, encKey) : undefined,
         secretKey: k.secretKey ? await decrypt(k.secretKey, encKey) : undefined,
-      }))
+      })),
     )
   },
 
@@ -151,7 +200,6 @@ export const apiKeysKV = {
       lastUsed: "-",
     }
 
-    // 加密敏感字段后存储
     const encrypted = {
       ...newKey,
       key: await encrypt(newKey.key, encKey),
@@ -173,7 +221,6 @@ export const apiKeysKV = {
     const index = keys.findIndex((k) => k.id === keyId)
     if (index === -1) return null
 
-    // 如果更新了敏感字段，需要重新加密
     const updateData = { ...data }
     if (updateData.key) {
       updateData.key = await encrypt(updateData.key, encKey)
@@ -188,7 +235,6 @@ export const apiKeysKV = {
     keys[index] = { ...keys[index], ...updateData }
     await kv.put(`keys:${userId}`, JSON.stringify(keys))
 
-    // 返回解密后的数据
     return {
       ...keys[index],
       key: keys[index].key ? await decrypt(keys[index].key, encKey) : "",
@@ -212,36 +258,49 @@ export const apiKeysKV = {
 
 // ========== 设置操作 ==========
 
+function normalizeSettings(settings: Partial<SystemSettings> | null): SystemSettings {
+  return {
+    defaultKeyType: settings?.defaultKeyType === "complex" ? "complex" : "apikey",
+    initialized: settings?.initialized === true,
+  }
+}
+
 export const settingsKV = {
   async get(): Promise<SystemSettings> {
     const kv = getKV()
     const data = await kv.get("settings:global")
-    return data ? JSON.parse(data) : DEFAULT_SETTINGS
+    return normalizeSettings(data ? (JSON.parse(data) as Partial<SystemSettings>) : null)
   },
 
   async update(data: Partial<SystemSettings>): Promise<SystemSettings> {
     const kv = getKV()
     const current = await this.get()
-    const updated = { ...current, ...data }
+    const updated: SystemSettings = {
+      ...current,
+      ...(data.defaultKeyType ? { defaultKeyType: data.defaultKeyType } : {}),
+      ...(typeof data.initialized === "boolean" ? { initialized: data.initialized } : {}),
+    }
     await kv.put("settings:global", JSON.stringify(updated))
     return updated
+  },
+
+  async markInitialized(): Promise<SystemSettings> {
+    return this.update({ initialized: true })
   },
 }
 
 // ========== 会话操作 ==========
 
-const SESSION_TTL = 7 * 24 * 60 * 60
-
 export const sessionKV = {
-  async create(userId: number, username: string): Promise<string> {
+  async create(userId: number, username: string, role: UserRole): Promise<string> {
     const kv = getKV()
-    // 兼容 Node.js 和浏览器环境的随机 ID 生成
     const sessionId = typeof crypto !== "undefined" && "randomUUID" in crypto
       ? (crypto as { randomUUID: () => string }).randomUUID()
       : `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}`
     const session: Session = {
       userId,
       username,
+      role,
       createdAt: new Date().toISOString(),
     }
     await kv.put(`session:${sessionId}`, JSON.stringify(session), { expirationTtl: SESSION_TTL })
@@ -251,7 +310,15 @@ export const sessionKV = {
   async get(sessionId: string): Promise<Session | null> {
     const kv = getKV()
     const data = await kv.get(`session:${sessionId}`)
-    return data ? JSON.parse(data) : null
+    if (!data) {
+      return null
+    }
+
+    const session = JSON.parse(data) as Omit<Session, "role"> & { role?: string }
+    return {
+      ...session,
+      role: normalizeRole(session.role),
+    }
   },
 
   async update(sessionId: string, data: Partial<Session>): Promise<Session | null> {
@@ -259,7 +326,11 @@ export const sessionKV = {
     const session = await this.get(sessionId)
     if (!session) return null
 
-    const updated = { ...session, ...data }
+    const updated: Session = {
+      ...session,
+      ...data,
+      role: normalizeRole(data.role ?? session.role),
+    }
     await kv.put(`session:${sessionId}`, JSON.stringify(updated), { expirationTtl: SESSION_TTL })
     return updated
   },
@@ -270,21 +341,147 @@ export const sessionKV = {
   },
 }
 
+// ========== 登录限流 ==========
+
+function getLoginRateLimitKey(identifier: string): string {
+  return `rate-limit:login:${identifier}`
+}
+
+export const loginRateLimitKV = {
+  async get(identifier: string): Promise<LoginRateLimitRecord | null> {
+    const kv = getKV()
+    const data = await kv.get(getLoginRateLimitKey(identifier))
+    return data ? (JSON.parse(data) as LoginRateLimitRecord) : null
+  },
+
+  async increment(identifier: string): Promise<LoginRateLimitRecord> {
+    const kv = getKV()
+    const current = await this.get(identifier)
+    const next: LoginRateLimitRecord = current
+      ? { ...current, count: current.count + 1 }
+      : { count: 1, firstAttemptAt: new Date().toISOString() }
+
+    await kv.put(getLoginRateLimitKey(identifier), JSON.stringify(next), { expirationTtl: LOGIN_RATE_LIMIT_TTL })
+    return next
+  },
+
+  async clear(identifier: string): Promise<void> {
+    const kv = getKV()
+    await kv.delete(getLoginRateLimitKey(identifier))
+  },
+}
+
+export function isLoginRateLimited(record: LoginRateLimitRecord | null): boolean {
+  return Boolean(record && record.count >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
+}
+
 // ========== 连接测试缓存 ==========
 
-const CACHE_TTL = 24 * 60 * 60
+function getTestCacheKey(userId: number, keyId: number): string {
+  return `cache:test:${userId}:${keyId}`
+}
 
 export const cacheKV = {
-  async getTestResult(keyId: number): Promise<ConnectionTestResult | null> {
+  async getTestResult(userId: number, keyId: number): Promise<ConnectionTestResult | null> {
     const kv = getKV()
-    const data = await kv.get(`cache:test:${keyId}`)
+    const data = await kv.get(getTestCacheKey(userId, keyId))
     return data ? JSON.parse(data) : null
   },
 
-  async setTestResult(keyId: number, result: ConnectionTestResult): Promise<void> {
+  async setTestResult(userId: number, keyId: number, result: ConnectionTestResult): Promise<void> {
     const kv = getKV()
-    await kv.put(`cache:test:${keyId}`, JSON.stringify(result), { expirationTtl: CACHE_TTL })
+    await kv.put(getTestCacheKey(userId, keyId), JSON.stringify(result), { expirationTtl: CACHE_TTL })
   },
+}
+
+// ========== 初始化与迁移 ==========
+
+export async function isSetupComplete(): Promise<boolean> {
+  const settings = await settingsKV.get()
+  if (settings.initialized) {
+    return true
+  }
+
+  return (await userKV.count()) > 0
+}
+
+export function getSetupToken(): string | null {
+  try {
+    const token = process.env.SETUP_TOKEN?.trim()
+    return token || null
+  } catch {
+    return null
+  }
+}
+
+export async function createInitialAdmin(input: {
+  username: string
+  email: string
+  password: string
+}): Promise<User> {
+  const username = input.username.trim()
+  const email = input.email.trim()
+  const password = input.password
+
+  if (!username) {
+    throw new Error("用户名不能为空")
+  }
+
+  if (!email) {
+    throw new Error("邮箱不能为空")
+  }
+
+  if (password.length < 6) {
+    throw new Error("密码长度至少为6个字符")
+  }
+
+  if (await isSetupComplete()) {
+    throw new Error("系统已初始化")
+  }
+
+  const { hash, salt } = await hashPassword(password)
+  const user = await userKV.create({
+    username,
+    email,
+    passwordHash: hash,
+    salt,
+    role: "admin",
+  })
+
+  await settingsKV.markInitialized()
+  return user
+}
+
+export async function ensureSingleAdminMigration(username: string): Promise<User | null> {
+  const user = await userKV.getByUsername(username)
+  if (!user) {
+    return null
+  }
+
+  if (user.role === "admin") {
+    const settings = await settingsKV.get()
+    if (!settings.initialized) {
+      await settingsKV.markInitialized()
+    }
+    return user
+  }
+
+  const userCount = await userKV.count()
+  if (userCount !== 1) {
+    return user
+  }
+
+  const migratedUser = await userKV.update(username, { role: "admin" })
+  if (!migratedUser) {
+    return null
+  }
+
+  const settings = await settingsKV.get()
+  if (!settings.initialized) {
+    await settingsKV.markInitialized()
+  }
+
+  return migratedUser
 }
 
 // ========== 认证辅助 ==========
@@ -302,9 +499,11 @@ export async function getSessionFromRequest(request: Request): Promise<Session |
 }
 
 export function createSessionCookie(sessionId: string): string {
-  return `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL}`
+  const securePart = isDevelopmentEnvironment() ? "" : "; Secure"
+  return `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL}${securePart}`
 }
 
 export function clearSessionCookie(): string {
-  return "session_id=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+  const securePart = isDevelopmentEnvironment() ? "" : "; Secure"
+  return `session_id=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${securePart}`
 }

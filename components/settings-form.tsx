@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { api } from "@/lib/api-client"
+import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, AlertCircle } from "lucide-react"
 
@@ -17,18 +17,16 @@ export default function SettingsForm() {
   const { toast } = useToast()
   const { t, language, setLanguage } = useLanguage()
 
-  // 系统设置
   const [defaultKeyType, setDefaultKeyType] = useState("apikey")
+  const [canManageSystemSettings, setCanManageSystemSettings] = useState(true)
   const [systemSaving, setSystemSaving] = useState(false)
   const [systemSuccess, setSystemSuccess] = useState(false)
 
-  // 个人设置
   const [username, setUsername] = useState("admin")
   const [email, setEmail] = useState("admin@example.com")
   const [userSaving, setUserSaving] = useState(false)
   const [userSuccess, setUserSuccess] = useState(false)
 
-  // 安全设置
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -36,27 +34,32 @@ export default function SettingsForm() {
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [passwordError, setPasswordError] = useState("")
 
-  // 初始化设置 - 从 API 加载
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [settingsData, userData] = await Promise.all([
-          api.get<{ settings: { defaultKeyType: string } }>("/settings"),
-          api.get<{ user: { username: string; email: string } }>("/user"),
-        ])
-
-        setDefaultKeyType(settingsData.settings.defaultKeyType)
+        const userData = await api.get<{ user: { username: string; email: string } }>("/user")
         setUsername(userData.user.username)
         setEmail(userData.user.email)
       } catch (error) {
-        console.error("加载设置失败:", error)
+        console.error("加载用户信息失败:", error)
+      }
+
+      try {
+        const settingsData = await api.get<{ settings: { defaultKeyType: string } }>("/settings")
+        setDefaultKeyType(settingsData.settings.defaultKeyType)
+        setCanManageSystemSettings(true)
+      } catch (error) {
+        if (isApiError(error) && error.status === 403) {
+          setCanManageSystemSettings(false)
+        } else {
+          console.error("加载系统设置失败:", error)
+        }
       }
     }
 
     loadData()
   }, [])
 
-  // 重置成功状态
   useEffect(() => {
     if (systemSuccess) {
       const timer = setTimeout(() => setSystemSuccess(false), 3000)
@@ -78,7 +81,6 @@ export default function SettingsForm() {
     }
   }, [passwordSuccess])
 
-  // 保存系统设置
   const saveSystemSettings = async () => {
     setSystemSaving(true)
     try {
@@ -103,7 +105,6 @@ export default function SettingsForm() {
     }
   }
 
-  // 保存用户设置
   const saveUserSettings = async () => {
     setUserSaving(true)
     try {
@@ -138,7 +139,6 @@ export default function SettingsForm() {
     }
   }
 
-  // 更改密码
   const saveSecuritySettings = async () => {
     setPasswordSaving(true)
     setPasswordError("")
@@ -191,7 +191,6 @@ export default function SettingsForm() {
     }
   }
 
-  // 语言切换
   const handleLanguageChange = (newLanguage: "zh-CN" | "en-US") => {
     setLanguage(newLanguage)
 
@@ -201,7 +200,6 @@ export default function SettingsForm() {
     })
   }
 
-  // 验证邮箱格式
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return re.test(email)
@@ -223,6 +221,13 @@ export default function SettingsForm() {
             <CardDescription>{t("settings.systemDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {!canManageSystemSettings && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>当前账号无权修改系统设置。</AlertDescription>
+              </Alert>
+            )}
+
             {systemSuccess && (
               <Alert className="bg-green-50 border-green-200 text-green-800">
                 <CheckCircle className="h-4 w-4 text-green-600" />
@@ -232,7 +237,7 @@ export default function SettingsForm() {
 
             <div className="space-y-2">
               <Label htmlFor="defaultKeyType">{t("settings.defaultKeyType")}</Label>
-              <Select value={defaultKeyType} onValueChange={setDefaultKeyType}>
+              <Select value={defaultKeyType} onValueChange={setDefaultKeyType} disabled={!canManageSystemSettings}>
                 <SelectTrigger>
                   <SelectValue placeholder={t("settings.defaultKeyType")} />
                 </SelectTrigger>
@@ -245,7 +250,7 @@ export default function SettingsForm() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={saveSystemSettings} disabled={systemSaving}>
+            <Button onClick={saveSystemSettings} disabled={systemSaving || !canManageSystemSettings}>
               {systemSaving ? "保存中..." : t("settings.saveSystemSettings")}
             </Button>
           </CardFooter>

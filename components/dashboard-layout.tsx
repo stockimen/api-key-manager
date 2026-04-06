@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { LayoutDashboard, Key, Settings, LogOut, Menu, X } from "lucide-react"
 import LanguageSwitcher from "@/components/language-switcher"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { api, isUnauthorizedError } from "@/lib/api-client"
+import { api, isApiError, isUnauthorizedError } from "@/lib/api-client"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -19,7 +19,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [authState, setAuthState] = useState<"checking" | "ready" | "error">("checking")
+  const [authState, setAuthState] = useState<"checking" | "ready" | "error" | "setup-required">("checking")
   const [authError, setAuthError] = useState("")
   const { t } = useLanguage()
 
@@ -36,13 +36,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         return
       }
 
+      if (isApiError(error) && error.status === 503) {
+        setAuthState("setup-required")
+        return
+      }
+
       const message = error instanceof Error ? error.message : "验证登录状态失败，请刷新后重试"
       setAuthError(message)
       setAuthState("error")
     }
   }, [router])
 
-  // 检查登录状态
   useEffect(() => {
     void checkSession()
   }, [checkSession])
@@ -52,9 +56,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       router.replace("/login")
     }
 
+    const handleSetupRequired = () => {
+      setAuthState("setup-required")
+    }
+
     window.addEventListener("auth:unauthorized", handleUnauthorized)
+    window.addEventListener("app:setup-required", handleSetupRequired)
     return () => {
       window.removeEventListener("auth:unauthorized", handleUnauthorized)
+      window.removeEventListener("app:setup-required", handleSetupRequired)
     }
   }, [router])
 
@@ -85,6 +95,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     )
   }
 
+  if (authState === "setup-required") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4">
+        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+          <h2 className="text-lg font-semibold">系统尚未初始化</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            请先调用受保护的 `/api/setup` 完成管理员初始化，然后再登录。
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (authState === "error") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4">
@@ -104,19 +127,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* 移动端菜单按钮 */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button variant="outline" size="icon" onClick={toggleSidebar}>
           {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
       </div>
 
-      {/* 语言切换器 - 移动端 */}
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <LanguageSwitcher />
       </div>
 
-      {/* 侧边栏 */}
       <div
         className={`
           fixed inset-y-0 left-0 z-40 w-52 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
@@ -158,7 +178,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
 
-      {/* 主内容区 */}
       <div className="flex-1 ml-0 lg:ml-52 transition-all duration-300 flex justify-center">
         <main className="h-full overflow-auto w-full max-w-6xl px-4">{children}</main>
       </div>

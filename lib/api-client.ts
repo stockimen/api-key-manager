@@ -7,6 +7,7 @@ const API_BASE = "/api"
 interface ApiOptions {
   method?: string
   body?: unknown
+  headers?: Record<string, string>
 }
 
 export class ApiError extends Error {
@@ -30,10 +31,11 @@ export function isUnauthorizedError(error: unknown): boolean {
 }
 
 export async function apiClient<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body } = options
+  const { method = "GET", body, headers: customHeaders } = options
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...customHeaders,
   }
 
   const fetchOptions: RequestInit = {
@@ -64,8 +66,14 @@ export async function apiClient<T>(endpoint: string, options: ApiOptions = {}): 
         ? String((data as { error?: unknown }).error ?? "请求失败")
         : `请求失败 (${response.status})`
 
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("auth:unauthorized"))
+    if (typeof window !== "undefined") {
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent("auth:unauthorized"))
+      }
+
+      if (response.status === 503) {
+        window.dispatchEvent(new CustomEvent("app:setup-required"))
+      }
     }
 
     throw new ApiError(errorMessage, response.status, data)
@@ -74,10 +82,10 @@ export async function apiClient<T>(endpoint: string, options: ApiOptions = {}): 
   return data as T
 }
 
-// 便捷方法
 export const api = {
   get: <T>(endpoint: string) => apiClient<T>(endpoint),
-  post: <T>(endpoint: string, body: unknown) => apiClient<T>(endpoint, { method: "POST", body }),
+  post: <T>(endpoint: string, body: unknown, headers?: Record<string, string>) =>
+    apiClient<T>(endpoint, { method: "POST", body, headers }),
   put: <T>(endpoint: string, body: unknown) => apiClient<T>(endpoint, { method: "PUT", body }),
   delete: <T>(endpoint: string) => apiClient<T>(endpoint, { method: "DELETE" }),
 }

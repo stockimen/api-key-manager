@@ -12,6 +12,7 @@ type KVStore = Record<string, KVEntry>
 
 const fallbackMemoryStore = new Map<string, KVEntry>()
 const cloudflareRequestContextSymbol = Symbol.for("__cloudflare-request-context__")
+const DEFAULT_DEVELOPMENT_ENCRYPTION_KEY = "default-dev-key-change-in-production"
 
 type CloudflareRequestContext = {
   env?: {
@@ -154,7 +155,9 @@ class LocalFileKV implements KVNamespace {
       }
 
       const raw = await fs.readFile(storagePath, "utf8")
-      if (!raw.trim()) return {}
+      if (!raw.trim()) {
+        return {}
+      }
       return JSON.parse(raw) as KVStore
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
@@ -223,7 +226,7 @@ class LocalFileKV implements KVNamespace {
     })
   }
 
-  async list(): Promise<{ keys: Array<{ name: string }> }> {
+  async list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }> }> {
     return this.withLock(async () => {
       const rawStore = await this.readStore()
       const { store, changed } = this.pruneExpired(rawStore)
@@ -232,12 +235,22 @@ class LocalFileKV implements KVNamespace {
         await this.writeStore(store)
       }
 
-      return { keys: Object.keys(store).map((name) => ({ name })) }
+      const prefix = options?.prefix ?? ""
+      const names = Object.keys(store).filter((name) => name.startsWith(prefix))
+      return { keys: names.map((name) => ({ name })) }
     })
   }
 }
 
 let localFileKV: LocalFileKV | null = null
+
+export function isDevelopmentEnvironment(): boolean {
+  try {
+    return typeof process !== "undefined" && process.env.NODE_ENV === "development"
+  } catch {
+    return false
+  }
+}
 
 function isLocalFallbackEnabled(): boolean {
   try {
@@ -287,8 +300,17 @@ export function getKV(): KVNamespace {
 
 export function getEncryptionKey(): string {
   try {
-    return process.env.ENCRYPTION_KEY || "default-dev-key-change-in-production"
+    const encryptionKey = process.env.ENCRYPTION_KEY?.trim()
+    if (encryptionKey) {
+      return encryptionKey
+    }
   } catch {
-    return "default-dev-key-change-in-production"
+    // ignore
   }
+
+  if (isDevelopmentEnvironment()) {
+    return DEFAULT_DEVELOPMENT_ENCRYPTION_KEY
+  }
+
+  throw new Error("生产环境必须配置 ENCRYPTION_KEY，且不能使用默认开发密钥。")
 }

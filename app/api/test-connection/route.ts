@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await testConnection(apiKey)
-    await cacheKV.setTestResult(keyId, result)
+    await cacheKV.setTestResult(session.userId, keyId, result)
 
     return NextResponse.json({ result })
   } catch (error) {
@@ -47,7 +47,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "keyId 为必填项" }, { status: 400 })
     }
 
-    const result = await cacheKV.getTestResult(keyId)
+    const keys = await apiKeysKV.getByUserId(session.userId)
+    const apiKey = keys.find((k) => k.id === keyId)
+    if (!apiKey) {
+      return NextResponse.json({ error: "密钥不存在" }, { status: 404 })
+    }
+
+    const result = await cacheKV.getTestResult(session.userId, keyId)
     return NextResponse.json({ result })
   } catch (error) {
     console.error("Get cached test result error:", error)
@@ -132,7 +138,11 @@ function normalizeUrl(url: string): string {
     return ""
   }
 
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    return new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`).toString()
+  } catch {
+    return ""
+  }
 }
 
 function buildModelListUrl(baseUrl: string): string | null {

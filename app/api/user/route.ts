@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { userKV, getSessionFromRequest, getSessionIdFromRequest, sessionKV, UserConflictError } from "@/lib/kv"
+import {
+  UserConflictError,
+  ensureSingleAdminMigration,
+  getSessionFromRequest,
+  getSessionIdFromRequest,
+  sessionKV,
+  userKV,
+} from "@/lib/kv"
 import { hashPassword, verifyPassword } from "@/lib/encryption"
 
 export const runtime = "edge"
@@ -11,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 })
     }
 
-    const user = await userKV.getByUsername(session.username)
+    const user = await ensureSingleAdminMigration(session.username)
     if (!user) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 })
     }
@@ -22,6 +29,7 @@ export async function GET(request: NextRequest) {
         username: user.username,
         email: user.email,
         createdAt: user.createdAt,
+        role: user.role,
       },
     })
   } catch (error) {
@@ -40,13 +48,12 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { currentPassword, newPassword, username, email } = body
 
-    // 修改密码
     if (currentPassword && newPassword) {
       if (newPassword.length < 6) {
         return NextResponse.json({ error: "密码长度至少为6个字符" }, { status: 400 })
       }
 
-      const user = await userKV.getByUsername(session.username)
+      const user = await ensureSingleAdminMigration(session.username)
       if (!user) {
         return NextResponse.json({ error: "用户不存在" }, { status: 404 })
       }
@@ -62,9 +69,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true })
     }
 
-    // 更新个人资料
     if (username || email) {
-      const user = await userKV.getByUsername(session.username)
+      const user = await ensureSingleAdminMigration(session.username)
       if (!user) {
         return NextResponse.json({ error: "用户不存在" }, { status: 404 })
       }
@@ -95,7 +101,7 @@ export async function PUT(request: NextRequest) {
       if (updated.username !== session.username) {
         const sessionId = getSessionIdFromRequest(request)
         if (sessionId) {
-          await sessionKV.update(sessionId, { username: updated.username })
+          await sessionKV.update(sessionId, { username: updated.username, role: updated.role })
         }
       }
 
@@ -105,6 +111,7 @@ export async function PUT(request: NextRequest) {
           username: updated.username,
           email: updated.email,
           createdAt: updated.createdAt,
+          role: updated.role,
         },
       })
     }

@@ -1,14 +1,13 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, RefreshCw, CheckCircle, XCircle, TestTube } from "lucide-react"
+import { RefreshCw, CheckCircle, XCircle, TestTube } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
 
-// API密钥类型（本地定义，不再依赖旧 storage）
 interface ApiKey {
   id: number
   userId: number
@@ -24,7 +23,6 @@ interface ApiKey {
   lastUsed: string
 }
 
-// API状态信息类型
 interface ApiStatusInfo {
   id: number
   provider: string
@@ -36,7 +34,6 @@ interface ApiStatusInfo {
   latency: number
 }
 
-// 连接测试结果类型
 interface ConnectionTestResult {
   status: number
   message: string
@@ -46,26 +43,13 @@ interface ConnectionTestResult {
 
 type StatusLevel = "success" | "error"
 
-// 获取充值URL
-function getRechargeUrl(provider: string): string {
-  switch (provider) {
-    case "OpenAI":
-      return "https://platform.openai.com/account/billing/overview"
-    case "Anthropic":
-      return "https://console.anthropic.com/account/billing"
-    case "Baidu":
-      return "https://console.bce.baidu.com/billing/#/billing/cbm/recharge"
-    case "Google":
-      return "https://console.cloud.google.com/billing"
-    case "Meta":
-      return "https://llama-api.meta.com/billing"
-    case "Mistral":
-      return "https://console.mistral.ai/billing/"
-    case "Cohere":
-      return "https://dashboard.cohere.com/account/billing"
-    default:
-      return "#"
+function normalizeExternalUrl(url: string | undefined): string {
+  const trimmed = url?.trim() || ""
+  if (!trimmed) {
+    return ""
   }
+
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
 }
 
 export default function ApiStatusCard() {
@@ -83,7 +67,6 @@ export default function ApiStatusCard() {
     return "error"
   }
 
-  // 获取API状态信息
   useEffect(() => {
     const fetchApiStatuses = async () => {
       try {
@@ -93,7 +76,6 @@ export default function ApiStatusCard() {
         const statusesPromises = apiKeys.map(async (key) => {
           if (key.provider === "Custom") return null
 
-          // 尝试从 API 缓存获取测试结果
           let testResult: ConnectionTestResult | null = null
           try {
             const cacheData = await api.get<{ result: ConnectionTestResult | null }>(
@@ -104,7 +86,6 @@ export default function ApiStatusCard() {
             // 无缓存
           }
 
-          // 如果没有缓存结果，进行测试
           if (!testResult) {
             try {
               const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
@@ -121,8 +102,6 @@ export default function ApiStatusCard() {
             }
           }
 
-          const rechargeUrl = key.rechargeUrl || getRechargeUrl(key.provider)
-
           return {
             id: key.id,
             provider: key.provider,
@@ -130,7 +109,7 @@ export default function ApiStatusCard() {
             status: testResult.status,
             message: testResult.message,
             testedAt: testResult.testedAt,
-            url: rechargeUrl,
+            url: normalizeExternalUrl(key.rechargeUrl),
             latency: testResult.latency || 0,
           }
         })
@@ -152,7 +131,6 @@ export default function ApiStatusCard() {
     fetchApiStatuses()
   }, [t, toast])
 
-  // 刷新所有API状态
   const refreshAllStatuses = async () => {
     setLoading(true)
     try {
@@ -167,8 +145,6 @@ export default function ApiStatusCard() {
             keyId: key.id,
           })
 
-          const rechargeUrl = key.rechargeUrl || getRechargeUrl(key.provider)
-
           return {
             id: key.id,
             provider: key.provider,
@@ -176,7 +152,7 @@ export default function ApiStatusCard() {
             status: testData.result.status,
             message: testData.result.message,
             testedAt: testData.result.testedAt,
-            url: rechargeUrl,
+            url: normalizeExternalUrl(key.rechargeUrl),
             latency: testData.result.latency || 0,
           }
         } catch {
@@ -187,7 +163,7 @@ export default function ApiStatusCard() {
             status: 0,
             message: t("error.serverConnectionFailed"),
             testedAt: new Date().toISOString(),
-            url: key.rechargeUrl || getRechargeUrl(key.provider),
+            url: normalizeExternalUrl(key.rechargeUrl),
             latency: 0,
           }
         }
@@ -214,7 +190,6 @@ export default function ApiStatusCard() {
     }
   }
 
-  // 测试单个API
   const testSingleApi = async (apiKeyId: number) => {
     setTestingKeys((prev) => ({ ...prev, [apiKeyId]: true }))
 
@@ -262,7 +237,6 @@ export default function ApiStatusCard() {
     }
   }
 
-  // 获取状态图标
   const getStatusIcon = (message: string) => {
     const level = getStatusLevel(message)
 
@@ -273,29 +247,11 @@ export default function ApiStatusCard() {
     return <XCircle className="h-5 w-5 text-red-500" />
   }
 
-  // 格式化测试时间
   const formatTestedTime = (isoString: string) => {
     const date = new Date(isoString)
     return date.toLocaleString()
   }
 
-  // 找出状态最差的API
-  const findWorstApi = () => {
-    if (apiStatuses.length === 0) return null
-
-    const priorityOrder: Record<StatusLevel, number> = {
-      success: 1,
-      error: 0,
-    }
-
-    return apiStatuses.reduce((worst, current) => {
-      const worstPriority = priorityOrder[getStatusLevel(worst.message)]
-      const currentPriority = priorityOrder[getStatusLevel(current.message)]
-      return currentPriority < worstPriority ? current : worst
-    }, apiStatuses[0])
-  }
-
-  // 翻译API状态消息
   const translateStatusMessage = (message: string) => {
     if (message.includes("模型列表可获取")) return t("api.status.modelListAvailable")
     if (message.includes("链接可访问，模型列表鉴权失败")) return t("api.status.modelAuthFailed")
@@ -325,34 +281,9 @@ export default function ApiStatusCard() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-lg font-medium">{t("api.status.connectionTest")}</div>
-              <p className="text-xs text-muted-foreground">{t("api.status.urlTestDescription")}</p>
-            </div>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => {
-                const worstApi = findWorstApi()
-                if (!worstApi) return
-
-                let url = worstApi.url
-                if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-                  url = "https://" + url
-                }
-
-                window.open(url, "_blank", "noopener,noreferrer")
-
-                toast({
-                  title: t("api.status.redirecting"),
-                  description: t("api.status.rechargeManage").replace("{provider}", worstApi.provider),
-                })
-              }}
-              disabled={apiStatuses.length === 0}
-            >
-              {t("api.status.rechargeManage")}
-              <ExternalLink className="ml-1 h-4 w-4" />
-            </Button>
+          <div>
+            <div className="text-lg font-medium">{t("api.status.connectionTest")}</div>
+            <p className="text-xs text-muted-foreground">{t("api.status.urlTestDescription")}</p>
           </div>
 
           <div className="space-y-3 mt-4">
@@ -375,20 +306,18 @@ export default function ApiStatusCard() {
                       <TestTube className={`h-3 w-3 mr-1 ${testingKeys[status.id] ? "animate-spin" : ""}`} />
                       {testingKeys[status.id] ? t("api.status.testing") : t("api.status.test")}
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={() => {
-                        let url = status.url
-                        if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
-                          url = "https://" + url
-                        }
-                        window.open(url, "_blank", "noopener,noreferrer")
-                      }}
-                    >
-                      {t("api.status.recharge")}
-                    </Button>
+                    {status.url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => {
+                          window.open(status.url, "_blank", "noopener,noreferrer")
+                        }}
+                      >
+                        打开链接
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 flex justify-between items-center">
@@ -404,7 +333,7 @@ export default function ApiStatusCard() {
                     </span>
                     {status.latency > 0 && (
                       <span className="text-xs ml-2 text-muted-foreground">
-                        {t("api.status.latency")}:{" "}
+                        {t("api.status.latency")}: {" "}
                         <span
                           className={`font-medium ${status.latency > 500 ? "text-amber-600" : status.latency > 1000 ? "text-red-600" : "text-green-600"}`}
                         >
@@ -431,7 +360,6 @@ export default function ApiStatusCard() {
 
           <div className="text-xs text-muted-foreground mt-2">
             <p>{t("api.status.autoUpdate")}</p>
-            <p>{t("api.status.rechargeButton")}</p>
           </div>
         </div>
       </CardContent>

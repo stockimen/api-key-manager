@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server"
-import { apiKeysKV, getSessionFromRequest, initializeDefaultData } from "@/lib/kv"
+﻿import { NextRequest, NextResponse } from "next/server"
+import { apiKeysKV, getSessionFromRequest } from "@/lib/kv"
 
 export const runtime = "edge"
 
@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 })
     }
 
-    await initializeDefaultData()
     const keys = await apiKeysKV.getByUserId(session.userId)
     return NextResponse.json({ keys })
   } catch (error) {
