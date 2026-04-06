@@ -8,7 +8,6 @@ import { api } from "@/lib/api-client"
 import { Progress } from "@/components/ui/progress"
 import { Activity } from "lucide-react"
 
-// API密钥类型
 interface ApiKey {
   id: number
   userId: number
@@ -24,12 +23,19 @@ interface ApiKey {
   lastUsed: string
 }
 
-// 连接测试结果类型
 interface ConnectionTestResult {
   status: number
   message: string
   testedAt: string
   latency: number
+}
+
+function isAvailableResult(result: ConnectionTestResult | null): boolean {
+  if (!result) {
+    return false
+  }
+
+  return result.message.includes("模型列表可获取") || result.message.includes("链接可访问")
 }
 
 export default function DashboardPage() {
@@ -45,7 +51,6 @@ export default function DashboardPage() {
 
         setActiveKeys(keys.length)
 
-        // 获取所有非 Custom 密钥的缓存测试结果
         const testableKeys = keys.filter((key) => key.provider !== "Custom")
         const testResults = await Promise.all(
           testableKeys.map(async (key) => {
@@ -60,14 +65,13 @@ export default function DashboardPage() {
           }),
         )
 
-        // 统计可用 API
         let availableCount = 0
         let totalTestedCount = 0
 
         testResults.forEach((result) => {
           if (result) {
             totalTestedCount++
-            if (result.status >= 200 && result.status < 300) {
+            if (isAvailableResult(result)) {
               availableCount++
             }
           }
@@ -83,10 +87,8 @@ export default function DashboardPage() {
     calculateApiStats()
   }, [])
 
-  // 监听 API 状态更新事件
   useEffect(() => {
     const handleApiStatusUpdate = () => {
-      // 重新计算统计
       const recalculate = async () => {
         try {
           const data = await api.get<{ keys: ApiKey[] }>("/keys")
@@ -113,7 +115,7 @@ export default function DashboardPage() {
           testResults.forEach((result) => {
             if (result) {
               totalTestedCount++
-              if (result.status >= 200 && result.status < 300) {
+              if (isAvailableResult(result)) {
                 availableCount++
               }
             }
@@ -179,7 +181,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* API状态卡片 */}
       <div className="mb-6">
         <ApiStatusCard />
       </div>

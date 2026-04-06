@@ -199,6 +199,9 @@ export type TranslationKey =
   | "api.status.autoUpdate"
   | "api.status.testButton"
   | "api.status.rechargeButton"
+  | "api.status.modelListAvailable"
+  | "api.status.urlReachable"
+  | "api.status.modelAuthFailed"
   | "api.status.normal"
   | "api.status.authFailed"
   | "api.status.rateLimited"
@@ -384,8 +387,8 @@ export const zhCN: Translations = {
   "api.status.description": "测试API密钥的连接状态",
   "api.status.refreshing": "更新中...",
   "api.status.refresh": "刷新状态",
-  "api.status.connectionTest": "API 连接检测",
-  "api.status.testDescription": "测试API密钥的连接状态",
+  "api.status.connectionTest": "链接访问检测",
+  "api.status.testDescription": "测试链接是否可访问，并在支持时尝试获取模型列表",
   "api.status.rechargeManage": "充值/管理",
   "api.status.redirecting": "正在跳转",
   "api.status.testing": "测试中",
@@ -398,11 +401,14 @@ export const zhCN: Translations = {
   "api.status.autoUpdate": '连接状态每天自动更新一次，点击"测试"按钮可立即测试单个API的连接状态',
   "api.status.testButton": '点击"测试"按钮可立即测试单个API的连接状态',
   "api.status.rechargeButton": '点击"充值/管理"按钮前往对应服务商的管理页面',
+  "api.status.modelListAvailable": "模型列表可获取",
+  "api.status.urlReachable": "链接可访问",
+  "api.status.modelAuthFailed": "链接可访问，模型列表鉴权失败",
   "api.status.normal": "连接正常",
   "api.status.authFailed": "认证失败",
   "api.status.rateLimited": "请求频率限制",
   "api.status.connectionError": "连接异常",
-  "api.status.urlTestDescription": "系统将直接使用您提供的API URL进行连接测试，请确保URL格式正确且包含完整路径。",
+  "api.status.urlTestDescription": "系统会先测试链接是否可访问，并在支持时尝试通过 API URL 获取模型列表。",
 
   // 首页相关
   "home.hero.subtitle": "安全、高效地管理您的各种 AI 模型 API 密钥，轻松监控使用情况和余额",
@@ -581,8 +587,8 @@ export const enUS: Translations = {
   "api.status.description": "Test API key connection status",
   "api.status.refreshing": "Updating...",
   "api.status.refresh": "Refresh Status",
-  "api.status.connectionTest": "API Connection Test",
-  "api.status.testDescription": "Test API key connection status",
+  "api.status.connectionTest": "Link Access Test",
+  "api.status.testDescription": "Check whether the URL is reachable and try to fetch the model list when supported.",
   "api.status.rechargeManage": "Recharge/Manage",
   "api.status.redirecting": "Redirecting",
   "api.status.testing": "Testing",
@@ -597,12 +603,15 @@ export const enUS: Translations = {
   "api.status.testButton": "Click the 'Test' button to immediately test a single API connection",
   "api.status.rechargeButton":
     "Click the 'Recharge/Manage' button to go to the corresponding service provider's management page",
+  "api.status.modelListAvailable": "Model List Available",
+  "api.status.urlReachable": "URL Reachable",
+  "api.status.modelAuthFailed": "URL Reachable, Model List Auth Failed",
   "api.status.normal": "Connection Normal",
   "api.status.authFailed": "Authentication Failed",
   "api.status.rateLimited": "Rate Limited",
   "api.status.connectionError": "Connection Error",
   "api.status.urlTestDescription":
-    "The system will directly use the API URL you provided for connection testing. Please ensure the URL format is correct and includes the complete path.",
+    "The system first checks whether the URL is reachable and then tries to fetch the model list through the API URL when supported.",
 
   // 首页相关
   "home.hero.subtitle": "Securely and efficiently manage your AI model API keys, easily monitor usage and balance",
@@ -633,4 +642,3 @@ export function getTranslations(language: Language): Translations {
       return zhCN
   }
 }
-

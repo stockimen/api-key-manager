@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, RefreshCw, AlertCircle, CheckCircle, XCircle, TestTube } from "lucide-react"
+import { ExternalLink, RefreshCw, CheckCircle, XCircle, TestTube } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
@@ -44,6 +44,8 @@ interface ConnectionTestResult {
   latency: number
 }
 
+type StatusLevel = "success" | "error"
+
 // 获取充值URL
 function getRechargeUrl(provider: string): string {
   switch (provider) {
@@ -72,6 +74,14 @@ export default function ApiStatusCard() {
   const [apiStatuses, setApiStatuses] = useState<ApiStatusInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [testingKeys, setTestingKeys] = useState<Record<number, boolean>>({})
+
+  const getStatusLevel = (message: string): StatusLevel => {
+    if (message.includes("模型列表可获取") || message.includes("链接可访问")) {
+      return "success"
+    }
+
+    return "error"
+  }
 
   // 获取API状态信息
   useEffect(() => {
@@ -104,7 +114,7 @@ export default function ApiStatusCard() {
             } catch {
               testResult = {
                 status: 0,
-                message: "连接失败",
+                message: "无法连接到服务器",
                 testedAt: new Date().toISOString(),
                 latency: 0,
               }
@@ -175,7 +185,7 @@ export default function ApiStatusCard() {
             provider: key.provider,
             name: key.name,
             status: 0,
-            message: t("error.connectionFailed"),
+            message: t("error.serverConnectionFailed"),
             testedAt: new Date().toISOString(),
             url: key.rechargeUrl || getRechargeUrl(key.provider),
             latency: 0,
@@ -240,7 +250,7 @@ export default function ApiStatusCard() {
             ? {
                 ...status,
                 status: 0,
-                message: t("error.connectionFailed"),
+                message: t("error.serverConnectionFailed"),
                 testedAt: new Date().toISOString(),
                 latency: 0,
               }
@@ -253,16 +263,14 @@ export default function ApiStatusCard() {
   }
 
   // 获取状态图标
-  const getStatusIcon = (status: number) => {
-    if (status >= 200 && status < 300) {
+  const getStatusIcon = (message: string) => {
+    const level = getStatusLevel(message)
+
+    if (level === "success") {
       return <CheckCircle className="h-5 w-5 text-green-500" />
-    } else if (status === 401 || status === 403) {
-      return <XCircle className="h-5 w-5 text-red-500" />
-    } else if (status === 429) {
-      return <AlertCircle className="h-5 w-5 text-amber-500" />
-    } else {
-      return <AlertCircle className="h-5 w-5 text-red-500" />
     }
+
+    return <XCircle className="h-5 w-5 text-red-500" />
   }
 
   // 格式化测试时间
@@ -275,26 +283,23 @@ export default function ApiStatusCard() {
   const findWorstApi = () => {
     if (apiStatuses.length === 0) return null
 
-    const priorityOrder: Record<string, number> = {
-      [t("api.status.normal")]: 3,
-      [t("api.status.rateLimited")]: 2,
-      [t("api.status.authFailed")]: 1,
-      [t("api.status.connectionError")]: 0,
-      [t("error.networkError")]: 0,
-      [t("error.serverConnectionFailed")]: 0,
-      [t("error.timeout")]: 0,
-      [t("error.unknownError")]: 0,
+    const priorityOrder: Record<StatusLevel, number> = {
+      success: 1,
+      error: 0,
     }
 
     return apiStatuses.reduce((worst, current) => {
-      const worstPriority = priorityOrder[worst.message.split(" ")[0]] || 0
-      const currentPriority = priorityOrder[current.message.split(" ")[0]] || 0
+      const worstPriority = priorityOrder[getStatusLevel(worst.message)]
+      const currentPriority = priorityOrder[getStatusLevel(current.message)]
       return currentPriority < worstPriority ? current : worst
     }, apiStatuses[0])
   }
 
   // 翻译API状态消息
   const translateStatusMessage = (message: string) => {
+    if (message.includes("模型列表可获取")) return t("api.status.modelListAvailable")
+    if (message.includes("链接可访问，模型列表鉴权失败")) return t("api.status.modelAuthFailed")
+    if (message.includes("链接可访问")) return t("api.status.urlReachable")
     if (message.includes("连接正常")) return t("api.status.normal")
     if (message.includes("认证失败")) return t("api.status.authFailed")
     if (message.includes("请求频率限制")) return t("api.status.rateLimited")
@@ -355,7 +360,7 @@ export default function ApiStatusCard() {
               <div key={status.id} className="p-3 border rounded-md">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center">
-                    {getStatusIcon(status.status)}
+                    {getStatusIcon(status.message)}
                     <span className="font-medium ml-2">{status.name}</span>
                     <span className="text-sm text-muted-foreground ml-2">({status.provider})</span>
                   </div>
@@ -390,11 +395,9 @@ export default function ApiStatusCard() {
                   <div className="text-sm">
                     <span
                       className={`px-2 py-1 rounded-full text-xs ${
-                        status.status >= 200 && status.status < 300
+                        getStatusLevel(status.message) === "success"
                           ? "bg-green-100 text-green-800"
-                          : status.status === 429
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-red-100 text-red-800"
+                          : "bg-red-100 text-red-800"
                       }`}
                     >
                       {translateStatusMessage(status.message)}
