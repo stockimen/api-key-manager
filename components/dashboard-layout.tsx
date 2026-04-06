@@ -72,9 +72,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   const navItems = [
-    { href: "/dashboard", label: t("common.dashboard"), icon: <LayoutDashboard className="mr-2 h-4 w-4" /> },
-    { href: "/dashboard/keys", label: t("common.apiKeys"), icon: <Key className="mr-2 h-4 w-4" /> },
-    { href: "/dashboard/settings", label: t("common.settings"), icon: <Settings className="mr-2 h-4 w-4" /> },
+    { href: "/dashboard", label: t("common.dashboard"), icon: <LayoutDashboard className="mr-3 h-4.5 w-4.5" /> },
+    { href: "/dashboard/keys", label: t("common.apiKeys"), icon: <Key className="mr-3 h-4.5 w-4.5" /> },
+    { href: "/dashboard/settings", label: t("common.settings"), icon: <Settings className="mr-3 h-4.5 w-4.5" /> },
   ]
 
   if (authState === "checking") {
@@ -119,24 +119,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* 侧边栏 */}
       <div
         className={`
-          fixed inset-y-0 left-0 z-40 w-40 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+          fixed inset-y-0 left-0 z-40 w-52 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0
         `}
       >
         <div className="flex flex-col h-full">
-          <div className="p-2 border-b flex justify-between items-center">
+          <div className="border-b px-3 py-3 flex justify-between items-center">
             <h2 className="text-base font-bold">{t("app.title")}</h2>
             <div className="hidden lg:block">
               <LanguageSwitcher />
             </div>
           </div>
-          <nav className="flex-1 py-1">
+          <nav className="flex-1 space-y-1.5 px-2 py-3">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`
-                  flex items-center px-2 py-1.5 mx-1 rounded-md text-xs
+                  flex items-center rounded-md px-3 py-2.5 text-sm font-medium
                   ${pathname === item.href ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100"}
                 `}
               >
@@ -145,10 +145,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </Link>
             ))}
           </nav>
-          <div className="p-2 border-t">
+          <div className="border-t p-3">
             <Button
               variant="outline"
-              className="w-full flex items-center justify-center text-xs py-1"
+              className="w-full flex items-center justify-center text-sm py-2"
               onClick={handleLogout}
             >
               <LogOut className="mr-1 h-3 w-3" />
@@ -159,7 +159,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* 主内容区 */}
-      <div className="flex-1 ml-0 lg:ml-40 transition-all duration-300 flex justify-center">
+      <div className="flex-1 ml-0 lg:ml-52 transition-all duration-300 flex justify-center">
         <main className="h-full overflow-auto w-full max-w-6xl px-4">{children}</main>
       </div>
     </div>
