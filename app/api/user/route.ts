@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { userKV, getSessionFromRequest, getSessionIdFromRequest, sessionKV, UserConflictError } from "@/lib/kv"
 import { hashPassword, verifyPassword } from "@/lib/encryption"
 
+export const runtime = "edge"
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request)

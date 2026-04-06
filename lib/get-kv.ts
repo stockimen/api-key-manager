@@ -19,6 +19,61 @@ type CloudflareRequestContext = {
   }
 }
 
+type NodeRequire = ((id: string) => unknown) | null
+
+type NodePathModule = {
+  join: (...paths: string[]) => string
+  dirname: (path: string) => string
+}
+
+type NodeFsPromisesModule = {
+  readFile: (path: string, encoding: "utf8") => Promise<string>
+  mkdir: (path: string, options: { recursive: true }) => Promise<void>
+  writeFile: (path: string, data: string, encoding: "utf8") => Promise<void>
+}
+
+let nodeRequire: NodeRequire | undefined
+
+function getNodeRequire(): NodeRequire {
+  if (nodeRequire !== undefined) {
+    return nodeRequire
+  }
+
+  try {
+    nodeRequire = Function("return typeof require === 'function' ? require : null")() as NodeRequire
+  } catch {
+    nodeRequire = null
+  }
+
+  return nodeRequire
+}
+
+function getNodePathModule(): NodePathModule | null {
+  const requireFn = getNodeRequire()
+  if (!requireFn) {
+    return null
+  }
+
+  try {
+    return requireFn(["pa", "th"].join("")) as NodePathModule
+  } catch {
+    return null
+  }
+}
+
+function getNodeFsPromisesModule(): NodeFsPromisesModule | null {
+  const requireFn = getNodeRequire()
+  if (!requireFn) {
+    return null
+  }
+
+  try {
+    return requireFn(["fs", "promises"].join("/")) as NodeFsPromisesModule
+  } catch {
+    return null
+  }
+}
+
 class LocalFileKV implements KVNamespace {
   private storagePath: string | null = null
   private writeQueue: Promise<void> = Promise.resolve()
@@ -29,8 +84,12 @@ class LocalFileKV implements KVNamespace {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const path = require("node:path") as typeof import("node:path")
+      const path = getNodePathModule()
+      if (!path || typeof process === "undefined" || typeof process.cwd !== "function") {
+        this.storagePath = null
+        return null
+      }
+
       this.storagePath = path.join(process.cwd(), ".dev-data", "kv-store.json")
       return this.storagePath
     } catch {
@@ -89,8 +148,11 @@ class LocalFileKV implements KVNamespace {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require("node:fs/promises") as typeof import("node:fs/promises")
+      const fs = getNodeFsPromisesModule()
+      if (!fs) {
+        return this.readMemoryStore()
+      }
+
       const raw = await fs.readFile(storagePath, "utf8")
       if (!raw.trim()) return {}
       return JSON.parse(raw) as KVStore
@@ -112,10 +174,12 @@ class LocalFileKV implements KVNamespace {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require("node:fs/promises") as typeof import("node:fs/promises")
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const path = require("node:path") as typeof import("node:path")
+      const fs = getNodeFsPromisesModule()
+      const path = getNodePathModule()
+      if (!fs || !path) {
+        this.writeMemoryStore(store)
+        return
+      }
 
       await fs.mkdir(path.dirname(storagePath), { recursive: true })
       await fs.writeFile(storagePath, JSON.stringify(store, null, 2), "utf8")

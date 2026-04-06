@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { userKV, sessionKV, initializeDefaultData, createSessionCookie } from "@/lib/kv"
 import { hashPassword, verifyPassword } from "@/lib/encryption"
 
+export const runtime = "edge"
+
 export async function POST(request: NextRequest) {
   try {
     // 确保默认数据已初始化

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { apiKeysKV, cacheKV, getSessionFromRequest } from "@/lib/kv"
 
+export const runtime = "edge"
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request)

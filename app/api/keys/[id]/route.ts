@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { apiKeysKV, getSessionFromRequest } from "@/lib/kv"
 
+export const runtime = "edge"
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }

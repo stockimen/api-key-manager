@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { settingsKV, getSessionFromRequest } from "@/lib/kv"
 
+export const runtime = "edge"
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromRequest(request)
