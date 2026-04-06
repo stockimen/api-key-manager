@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,6 +43,8 @@ interface ConnectionTestResult {
 
 type StatusLevel = "success" | "error"
 
+const MAX_VISIBLE_TESTABLE_KEYS = 10
+
 function normalizeExternalUrl(url: string | undefined): string {
   const trimmed = url?.trim() || ""
   if (!trimmed) {
@@ -52,12 +54,55 @@ function normalizeExternalUrl(url: string | undefined): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
 }
 
+function getVisibleTestableKeys(keys: ApiKey[]): ApiKey[] {
+  return keys.filter((key) => key.provider !== "Custom").slice(0, MAX_VISIBLE_TESTABLE_KEYS)
+}
+
+async function loadStatusForKey(key: ApiKey, fallbackMessage: string): Promise<ApiStatusInfo> {
+  let testResult: ConnectionTestResult | null = null
+
+  try {
+    const cacheData = await api.get<{ result: ConnectionTestResult | null }>(`/test-connection?keyId=${key.id}`)
+    testResult = cacheData.result
+  } catch {
+    // 无缓存
+  }
+
+  if (!testResult) {
+    try {
+      const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
+        keyId: key.id,
+      })
+      testResult = testData.result
+    } catch {
+      testResult = {
+        status: 0,
+        message: fallbackMessage,
+        testedAt: new Date().toISOString(),
+        latency: 0,
+      }
+    }
+  }
+
+  return {
+    id: key.id,
+    provider: key.provider,
+    name: key.name,
+    status: testResult.status,
+    message: testResult.message,
+    testedAt: testResult.testedAt,
+    url: normalizeExternalUrl(key.rechargeUrl),
+    latency: testResult.latency || 0,
+  }
+}
+
 export default function ApiStatusCard() {
   const { t } = useLanguage()
   const { toast } = useToast()
   const [apiStatuses, setApiStatuses] = useState<ApiStatusInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [testingKeys, setTestingKeys] = useState<Record<number, boolean>>({})
+  const [hiddenTestableCount, setHiddenTestableCount] = useState(0)
 
   const getStatusLevel = (message: string): StatusLevel => {
     if (message.includes("模型列表可获取") || message.includes("链接可访问")) {
@@ -71,52 +116,15 @@ export default function ApiStatusCard() {
     const fetchApiStatuses = async () => {
       try {
         const data = await api.get<{ keys: ApiKey[] }>("/keys")
-        const apiKeys = data.keys
+        const visibleKeys = getVisibleTestableKeys(data.keys)
+        const totalTestableCount = data.keys.filter((key) => key.provider !== "Custom").length
+        setHiddenTestableCount(Math.max(0, totalTestableCount - visibleKeys.length))
 
-        const statusesPromises = apiKeys.map(async (key) => {
-          if (key.provider === "Custom") return null
+        const statuses = await Promise.all(
+          visibleKeys.map((key) => loadStatusForKey(key, "无法连接到服务器")),
+        )
 
-          let testResult: ConnectionTestResult | null = null
-          try {
-            const cacheData = await api.get<{ result: ConnectionTestResult | null }>(
-              `/test-connection?keyId=${key.id}`,
-            )
-            testResult = cacheData.result
-          } catch {
-            // 无缓存
-          }
-
-          if (!testResult) {
-            try {
-              const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
-                keyId: key.id,
-              })
-              testResult = testData.result
-            } catch {
-              testResult = {
-                status: 0,
-                message: "无法连接到服务器",
-                testedAt: new Date().toISOString(),
-                latency: 0,
-              }
-            }
-          }
-
-          return {
-            id: key.id,
-            provider: key.provider,
-            name: key.name,
-            status: testResult.status,
-            message: testResult.message,
-            testedAt: testResult.testedAt,
-            url: normalizeExternalUrl(key.rechargeUrl),
-            latency: testResult.latency || 0,
-          }
-        })
-
-        const statuses = (await Promise.all(statusesPromises)).filter(Boolean) as ApiStatusInfo[]
         setApiStatuses(statuses)
-        setLoading(false)
       } catch (error) {
         console.error("获取API状态失败:", error)
         toast({
@@ -124,6 +132,7 @@ export default function ApiStatusCard() {
           description: t("error.fetchFailed"),
           variant: "destructive",
         })
+      } finally {
         setLoading(false)
       }
     }
@@ -135,41 +144,42 @@ export default function ApiStatusCard() {
     setLoading(true)
     try {
       const data = await api.get<{ keys: ApiKey[] }>("/keys")
-      const apiKeys = data.keys
+      const visibleKeys = getVisibleTestableKeys(data.keys)
+      const totalTestableCount = data.keys.filter((key) => key.provider !== "Custom").length
+      setHiddenTestableCount(Math.max(0, totalTestableCount - visibleKeys.length))
 
-      const statusesPromises = apiKeys.map(async (key) => {
-        if (key.provider === "Custom") return null
+      const statuses = await Promise.all(
+        visibleKeys.map(async (key) => {
+          try {
+            const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
+              keyId: key.id,
+            })
 
-        try {
-          const testData = await api.post<{ result: ConnectionTestResult }>("/test-connection", {
-            keyId: key.id,
-          })
-
-          return {
-            id: key.id,
-            provider: key.provider,
-            name: key.name,
-            status: testData.result.status,
-            message: testData.result.message,
-            testedAt: testData.result.testedAt,
-            url: normalizeExternalUrl(key.rechargeUrl),
-            latency: testData.result.latency || 0,
+            return {
+              id: key.id,
+              provider: key.provider,
+              name: key.name,
+              status: testData.result.status,
+              message: testData.result.message,
+              testedAt: testData.result.testedAt,
+              url: normalizeExternalUrl(key.rechargeUrl),
+              latency: testData.result.latency || 0,
+            }
+          } catch {
+            return {
+              id: key.id,
+              provider: key.provider,
+              name: key.name,
+              status: 0,
+              message: t("error.serverConnectionFailed"),
+              testedAt: new Date().toISOString(),
+              url: normalizeExternalUrl(key.rechargeUrl),
+              latency: 0,
+            }
           }
-        } catch {
-          return {
-            id: key.id,
-            provider: key.provider,
-            name: key.name,
-            status: 0,
-            message: t("error.serverConnectionFailed"),
-            testedAt: new Date().toISOString(),
-            url: normalizeExternalUrl(key.rechargeUrl),
-            latency: 0,
-          }
-        }
-      })
+        }),
+      )
 
-      const statuses = (await Promise.all(statusesPromises)).filter(Boolean) as ApiStatusInfo[]
       setApiStatuses(statuses)
 
       toast({
@@ -284,6 +294,11 @@ export default function ApiStatusCard() {
           <div>
             <div className="text-lg font-medium">{t("api.status.connectionTest")}</div>
             <p className="text-xs text-muted-foreground">{t("api.status.urlTestDescription")}</p>
+            {hiddenTestableCount > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {t("api.status.limitNotice", { count: hiddenTestableCount, max: MAX_VISIBLE_TESTABLE_KEYS })}
+              </p>
+            )}
           </div>
 
           <div className="space-y-3 mt-4">
@@ -315,7 +330,7 @@ export default function ApiStatusCard() {
                           window.open(status.url, "_blank", "noopener,noreferrer")
                         }}
                       >
-                        打开链接
+                        {t("api.status.openLink")}
                       </Button>
                     )}
                   </div>
@@ -333,9 +348,9 @@ export default function ApiStatusCard() {
                     </span>
                     {status.latency > 0 && (
                       <span className="text-xs ml-2 text-muted-foreground">
-                        {t("api.status.latency")}: {" "}
+                        {t("api.status.latency")}:{" "}
                         <span
-                          className={`font-medium ${status.latency > 500 ? "text-amber-600" : status.latency > 1000 ? "text-red-600" : "text-green-600"}`}
+                          className={`font-medium ${status.latency > 1000 ? "text-red-600" : status.latency > 500 ? "text-amber-600" : "text-green-600"}`}
                         >
                           {status.latency}ms
                         </span>

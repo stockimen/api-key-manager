@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -48,6 +48,8 @@ const DEFAULT_API_URLS: Record<string, string> = {
   Custom: "",
 }
 
+const PAGE_SIZE = 20
+
 type CopyState = { [key: string]: boolean }
 
 export default function ApiKeyList() {
@@ -61,6 +63,9 @@ export default function ApiKeyList() {
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null)
   const [formErrors, setFormErrors] = useState<{ name?: string; key?: string }>({})
   const [copiedStates, setCopiedStates] = useState<CopyState>({})
+  const [searchQuery, setSearchQuery] = useState("")
+  const [providerFilter, setProviderFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
   const [newKey, setNewKey] = useState({
     name: "",
     key: "",
@@ -72,7 +77,6 @@ export default function ApiKeyList() {
     baseUrl: "",
   })
 
-  // 加载 API 密钥
   const loadKeys = useCallback(async () => {
     try {
       const data = await api.get<{ keys: ApiKey[] }>("/keys")
@@ -88,7 +92,6 @@ export default function ApiKeyList() {
     loadKeys()
   }, [loadKeys])
 
-  // 加载默认密钥类型
   useEffect(() => {
     const loadDefaultType = async () => {
       try {
@@ -100,6 +103,44 @@ export default function ApiKeyList() {
     }
     loadDefaultType()
   }, [])
+
+  const providerOptions = useMemo(() => {
+    return Array.from(new Set(apiKeys.map((key) => key.provider.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  }, [apiKeys])
+
+  const filteredKeys = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+
+    return apiKeys.filter((apiKey) => {
+      const matchesProvider = providerFilter === "all" || apiKey.provider === providerFilter
+      if (!matchesProvider) {
+        return false
+      }
+
+      if (!normalizedQuery) {
+        return true
+      }
+
+      return [apiKey.name, apiKey.provider, apiKey.baseUrl].some((value) => value.toLowerCase().includes(normalizedQuery))
+    })
+  }, [apiKeys, providerFilter, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredKeys.length / PAGE_SIZE))
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [providerFilter, searchQuery])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const paginatedKeys = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE
+    return filteredKeys.slice(startIndex, startIndex + PAGE_SIZE)
+  }, [currentPage, filteredKeys])
 
   const toggleKeyVisibility = (id: number) => {
     setVisibleKeys((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -126,7 +167,6 @@ export default function ApiKeyList() {
       setApiKeys((prev) => [...prev, data.key])
       setIsAddDialogOpen(false)
 
-      // 重置表单
       try {
         const settings = await api.get<{ settings: { defaultKeyType: "apikey" | "complex" } }>("/settings")
         setNewKey({
@@ -199,6 +239,11 @@ export default function ApiKeyList() {
     setTimeout(() => setCopiedStates((prev) => ({ ...prev, [identifier]: false })), 1500)
   }
 
+  const clearFilters = () => {
+    setSearchQuery("")
+    setProviderFilter("all")
+  }
+
   if (loading) {
     return <Card><CardContent className="p-6"><p>{t("common.loading")}</p></CardContent></Card>
   }
@@ -234,7 +279,7 @@ export default function ApiKeyList() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 py-4 sm:grid-cols-2">
                   <div className="space-y-4">
                     <div className="grid gap-2">
                       <Label htmlFor="name" className="flex items-center">
@@ -304,7 +349,6 @@ export default function ApiKeyList() {
           </Dialog>
         </div>
 
-        {/* 编辑密钥对话框 */}
         <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setFormErrors({}) }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -368,6 +412,44 @@ export default function ApiKeyList() {
           </DialogContent>
         </Dialog>
 
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+          <div className="grid gap-2">
+            <Label htmlFor="key-search">{t("apiKeys.searchLabel")}</Label>
+            <Input
+              id="key-search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t("apiKeys.searchPlaceholder")}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="provider-filter">{t("apiKeys.providerFilter")}</Label>
+            <Select value={providerFilter} onValueChange={setProviderFilter}>
+              <SelectTrigger id="provider-filter">
+                <SelectValue placeholder={t("common.all")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("common.all")}</SelectItem>
+                {providerOptions.map((provider) => (
+                  <SelectItem key={provider} value={provider}>
+                    {provider}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 md:justify-end">
+            <Button variant="outline" onClick={clearFilters} disabled={!searchQuery && providerFilter === "all"}>
+              {t("apiKeys.clearFilters")}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
+          <span>{t("apiKeys.resultCount", { count: filteredKeys.length, pageSize: PAGE_SIZE })}</span>
+          {filteredKeys.length > 0 && <span>{t("apiKeys.pageIndicator", { current: currentPage, total: totalPages })}</span>}
+        </div>
+
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -381,7 +463,7 @@ export default function ApiKeyList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {apiKeys.map((apiKey) => (
+              {paginatedKeys.map((apiKey) => (
                 <TableRow key={apiKey.id}>
                   <TableCell className="font-medium">
                     {apiKey.name}
@@ -399,7 +481,8 @@ export default function ApiKeyList() {
                         {visibleKeys[apiKey.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                       <Button
-                        variant="ghost" size="icon"
+                        variant="ghost"
+                        size="icon"
                         onClick={() => copyToClipboard(apiKey.key, `key-${apiKey.id}`)}
                         className={copiedStates[`key-${apiKey.id}`] ? "text-green-500" : ""}
                       >
@@ -448,10 +531,35 @@ export default function ApiKeyList() {
           </Table>
         </div>
 
+        {!apiKeys.length && (
+          <div className="py-6 text-center text-sm text-muted-foreground">{t("apiKeys.emptyState")}</div>
+        )}
+
+        {apiKeys.length > 0 && filteredKeys.length === 0 && (
+          <div className="py-6 text-center text-sm text-muted-foreground">
+            <p>{t("apiKeys.noMatchingResults")}</p>
+            <Button variant="link" className="mt-1 h-auto p-0" onClick={clearFilters}>
+              {t("apiKeys.clearFilters")}
+            </Button>
+          </div>
+        )}
+
+        {filteredKeys.length > 0 && (
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <Button variant="outline" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
+              {t("apiKeys.previousPage")}
+            </Button>
+            <span className="text-sm text-muted-foreground">{t("apiKeys.pageIndicator", { current: currentPage, total: totalPages })}</span>
+            <Button variant="outline" onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages}>
+              {t("apiKeys.nextPage")}
+            </Button>
+          </div>
+        )}
+
         <div className="mt-4 text-sm text-muted-foreground">
           <p>{t("apiKeys.customUrlTip")}</p>
           <p className="mt-1">
-            {t("apiKeys.requestHeader")}{" "}
+            {t("apiKeys.requestHeader")} {" "}
             <code className="bg-muted px-2 py-1 rounded">Authorization: Bearer YOUR_API_KEY</code>
           </p>
         </div>

@@ -77,6 +77,7 @@ export type TranslationKey =
   | "dashboard.apiAvailabilityNormal"
   | "dashboard.apiAvailabilityDelayed"
   | "dashboard.apiAvailabilityIssues"
+  | "dashboard.apiAvailabilityHint"
   | "apiKeys.title"
   | "apiKeys.list"
   | "apiKeys.add"
@@ -101,6 +102,16 @@ export type TranslationKey =
   | "apiKeys.secretKeyPlaceholder"
   | "apiKeys.requestHeader"
   | "apiKeys.customUrlTip"
+  | "apiKeys.searchLabel"
+  | "apiKeys.searchPlaceholder"
+  | "apiKeys.providerFilter"
+  | "apiKeys.clearFilters"
+  | "apiKeys.noMatchingResults"
+  | "apiKeys.emptyState"
+  | "apiKeys.previousPage"
+  | "apiKeys.nextPage"
+  | "apiKeys.resultCount"
+  | "apiKeys.pageIndicator"
   | "settings.title"
   | "settings.system"
   | "settings.user"
@@ -195,6 +206,8 @@ export type TranslationKey =
   | "api.status.latency"
   | "api.status.lastTested"
   | "api.status.noApiKeys"
+  | "api.status.limitNotice"
+  | "api.status.openLink"
   | "api.status.loading"
   | "api.status.autoUpdate"
   | "api.status.testButton"
@@ -306,6 +319,7 @@ export const zhCN: Translations = {
   "dashboard.apiAvailabilityNormal": "所有API服务运行正常",
   "dashboard.apiAvailabilityDelayed": "部分API服务可能存在延迟",
   "dashboard.apiAvailabilityIssues": "部分API服务不可用",
+  "dashboard.apiAvailabilityHint": "首页可用率基于前 10 个可测试密钥的最近状态计算。",
   "dashboard.recharge": "充值",
 
   // API密钥相关
@@ -332,6 +346,16 @@ export const zhCN: Translations = {
   "apiKeys.secretKeyPlaceholder": "输入 Secret Key",
   "apiKeys.requestHeader": "请求头格式：",
   "apiKeys.customUrlTip": "提示：您可以自定义 API 请求 URL 以支持本地部署的大模型或私有 API 端点。",
+  "apiKeys.searchLabel": "搜索密钥",
+  "apiKeys.searchPlaceholder": "按名称、提供商或 URL 搜索",
+  "apiKeys.providerFilter": "提供商筛选",
+  "apiKeys.clearFilters": "清空筛选",
+  "apiKeys.noMatchingResults": "没有符合当前筛选条件的密钥。",
+  "apiKeys.emptyState": "还没有添加任何 API 密钥。",
+  "apiKeys.previousPage": "上一页",
+  "apiKeys.nextPage": "下一页",
+  "apiKeys.resultCount": "共 {count} 条结果，每页 {pageSize} 条",
+  "apiKeys.pageIndicator": "第 {current} / {total} 页",
   "apiKeys.provider": "提供商",
   "apiKeys.providerPlaceholder": "例如：本地部署模型",
   "apiKeys.customProviderDescription": "自定义提供商适用于本地部署或代理服务",
@@ -397,6 +421,8 @@ export const zhCN: Translations = {
   "api.status.latency": "延迟",
   "api.status.lastTested": "最后测试",
   "api.status.noApiKeys": "没有找到API密钥，请先添加API密钥",
+  "api.status.limitNotice": "首页仅展示前 {max} 个可测试密钥，另有 {count} 个未在此处展示。",
+  "api.status.openLink": "打开链接",
   "api.status.loading": "正在加载API状态...",
   "api.status.autoUpdate": '连接状态每天自动更新一次，点击"测试"按钮可立即测试单个API的连接状态',
   "api.status.testButton": '点击"测试"按钮可立即测试单个API的连接状态',
@@ -504,6 +530,7 @@ export const enUS: Translations = {
   "dashboard.apiAvailabilityNormal": "All API services are running normally",
   "dashboard.apiAvailabilityDelayed": "Some API services may experience delays",
   "dashboard.apiAvailabilityIssues": "Some API services are unavailable",
+  "dashboard.apiAvailabilityHint": "Homepage availability is calculated from the latest status of the first 10 testable keys.",
   "dashboard.recharge": "Recharge",
 
   // API密钥相关
@@ -532,6 +559,16 @@ export const enUS: Translations = {
   "apiKeys.requestHeader": "Request header format:",
   "apiKeys.customUrlTip":
     "Tip: You can customize the API request URL to support locally deployed models or private API endpoints.",
+  "apiKeys.searchLabel": "Search Keys",
+  "apiKeys.searchPlaceholder": "Search by name, provider, or URL",
+  "apiKeys.providerFilter": "Provider Filter",
+  "apiKeys.clearFilters": "Clear Filters",
+  "apiKeys.noMatchingResults": "No keys match the current filters.",
+  "apiKeys.emptyState": "No API keys have been added yet.",
+  "apiKeys.previousPage": "Previous",
+  "apiKeys.nextPage": "Next",
+  "apiKeys.resultCount": "{count} results, {pageSize} per page",
+  "apiKeys.pageIndicator": "Page {current} / {total}",
   "apiKeys.provider": "Provider",
   "apiKeys.providerPlaceholder": "e.g., Local Deployment",
   "apiKeys.customProviderDescription": "Custom providers are suitable for local deployments or proxy services",
@@ -597,6 +634,8 @@ export const enUS: Translations = {
   "api.status.latency": "Latency",
   "api.status.lastTested": "Last Tested",
   "api.status.noApiKeys": "No API keys found, please add API keys first",
+  "api.status.limitNotice": "The homepage shows only the first {max} testable keys. {count} more are not shown here.",
+  "api.status.openLink": "Open Link",
   "api.status.loading": "Loading API status...",
   "api.status.autoUpdate":
     "Connection status is automatically updated once a day, click the 'Test' button to immediately test a single API connection",

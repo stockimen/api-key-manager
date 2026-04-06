@@ -3,24 +3,34 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { type Language, type TranslationKey, getTranslations } from "./translations"
 
-// 定义语言上下文类型
+interface TranslationParams {
+  [key: string]: string | number
+}
+
 interface LanguageContextType {
   language: Language
   setLanguage: (language: Language) => void
-  t: (key: TranslationKey) => string
+  t: (key: TranslationKey, params?: TranslationParams) => string
 }
 
-// 创建语言上下文
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
 
-// 语言提供者组件
 interface LanguageProviderProps {
   children: ReactNode
   defaultLanguage?: Language
 }
 
+function applyTranslationParams(template: string, params?: TranslationParams): string {
+  if (!params) {
+    return template
+  }
+
+  return Object.entries(params).reduce((result, [key, value]) => {
+    return result.replaceAll(`{${key}}`, String(value))
+  }, template)
+}
+
 export function LanguageProvider({ children, defaultLanguage = "zh-CN" }: LanguageProviderProps) {
-  // 尝试从本地存储获取语言设置，如果没有则使用默认语言
   const [language, setLanguageState] = useState<Language>(() => {
     if (typeof window !== "undefined") {
       const savedLanguage = localStorage.getItem("language") as Language
@@ -29,7 +39,6 @@ export function LanguageProvider({ children, defaultLanguage = "zh-CN" }: Langua
     return defaultLanguage
   })
 
-  // 设置语言并保存到本地存储
   const setLanguage = (newLanguage: Language) => {
     setLanguageState(newLanguage)
     if (typeof window !== "undefined") {
@@ -37,13 +46,12 @@ export function LanguageProvider({ children, defaultLanguage = "zh-CN" }: Langua
     }
   }
 
-  // 翻译函数
-  const t = (key: TranslationKey): string => {
+  const t = (key: TranslationKey, params?: TranslationParams): string => {
     const translations = getTranslations(language)
-    return translations[key] || key
+    const value = translations[key] || key
+    return applyTranslationParams(value, params)
   }
 
-  // 当语言变化时，更新文档的语言属性
   useEffect(() => {
     if (typeof window !== "undefined") {
       document.documentElement.lang = language
@@ -53,7 +61,6 @@ export function LanguageProvider({ children, defaultLanguage = "zh-CN" }: Langua
   return <LanguageContext.Provider value={{ language, setLanguage, t }}>{children}</LanguageContext.Provider>
 }
 
-// 使用语言的钩子
 export function useLanguage() {
   const context = useContext(LanguageContext)
   if (context === undefined) {
@@ -61,4 +68,3 @@ export function useLanguage() {
   }
   return context
 }
-

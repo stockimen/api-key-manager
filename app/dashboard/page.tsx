@@ -30,12 +30,18 @@ interface ConnectionTestResult {
   latency: number
 }
 
+const MAX_VISIBLE_TESTABLE_KEYS = 10
+
 function isAvailableResult(result: ConnectionTestResult | null): boolean {
   if (!result) {
     return false
   }
 
   return result.message.includes("模型列表可获取") || result.message.includes("链接可访问")
+}
+
+function getVisibleTestableKeys(keys: ApiKey[]): ApiKey[] {
+  return keys.filter((key) => key.provider !== "Custom").slice(0, MAX_VISIBLE_TESTABLE_KEYS)
 }
 
 export default function DashboardPage() {
@@ -48,16 +54,14 @@ export default function DashboardPage() {
       try {
         const data = await api.get<{ keys: ApiKey[] }>("/keys")
         const keys = data.keys
+        const visibleTestableKeys = getVisibleTestableKeys(keys)
 
         setActiveKeys(keys.length)
 
-        const testableKeys = keys.filter((key) => key.provider !== "Custom")
         const testResults = await Promise.all(
-          testableKeys.map(async (key) => {
+          visibleTestableKeys.map(async (key) => {
             try {
-              const result = await api.get<{ result: ConnectionTestResult | null }>(
-                `/test-connection?keyId=${key.id}`,
-              )
+              const result = await api.get<{ result: ConnectionTestResult | null }>(`/test-connection?keyId=${key.id}`)
               return result.result
             } catch {
               return null
@@ -93,15 +97,13 @@ export default function DashboardPage() {
         try {
           const data = await api.get<{ keys: ApiKey[] }>("/keys")
           const keys = data.keys
+          const visibleTestableKeys = getVisibleTestableKeys(keys)
           setActiveKeys(keys.length)
 
-          const testableKeys = keys.filter((key) => key.provider !== "Custom")
           const testResults = await Promise.all(
-            testableKeys.map(async (key) => {
+            visibleTestableKeys.map(async (key) => {
               try {
-                const result = await api.get<{ result: ConnectionTestResult | null }>(
-                  `/test-connection?keyId=${key.id}`,
-                )
+                const result = await api.get<{ result: ConnectionTestResult | null }>(`/test-connection?keyId=${key.id}`)
                 return result.result
               } catch {
                 return null
@@ -170,6 +172,7 @@ export default function DashboardPage() {
             <div className="mt-2">
               <Progress value={apiAvailability} className="h-1.5" />
             </div>
+            <p className="text-xs text-muted-foreground mt-2">{t("dashboard.apiAvailabilityHint")}</p>
             <p className="text-xs text-muted-foreground mt-2">
               {apiAvailability >= 90
                 ? t("dashboard.apiAvailabilityNormal")
