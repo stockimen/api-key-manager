@@ -272,13 +272,13 @@ export default function ApiStatusCard() {
           <div className="space-y-3 mt-4">
             {apiStatuses.map((status) => (
               <div key={status.id} className="p-3 border rounded-md">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center min-w-0">
                     {getStatusIcon(status.message)}
-                    <span className="font-medium ml-2">{status.name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">({status.provider})</span>
+                    <span className="font-medium ml-2 truncate">{status.name}</span>
+                    <span className="text-sm text-muted-foreground ml-2 shrink-0">({status.provider})</span>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
@@ -303,7 +303,7 @@ export default function ApiStatusCard() {
                     )}
                   </div>
                 </div>
-                <div className="mt-2 flex justify-between items-center">
+                <div className="mt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
                   <div className="text-sm">
                     <span
                       className={`px-2 py-1 rounded-full text-xs ${

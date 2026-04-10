@@ -86,6 +86,15 @@
     min-height: 100%;
   }
 
+  @supports not (height: 1dvh) {
+    .h-dvh {
+      height: 100vh;
+    }
+    .max-h-\[90dvh\] {
+      max-height: 90vh;
+    }
+  }
+
   * {
     @apply border-border;
   }

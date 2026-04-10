@@ -83,7 +83,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (authState === "checking") {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <p>{t("common.loading")}</p>
       </div>
     )
@@ -120,7 +120,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-dvh bg-gray-100 overflow-hidden">
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button variant="outline" size="icon" onClick={toggleSidebar}>
           {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -172,8 +172,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
 
-      <div className="flex-1 ml-0 lg:ml-52 transition-all duration-300 flex justify-center">
-        <main className="h-full overflow-auto w-full max-w-6xl px-4">{children}</main>
+      <div className="flex-1 min-w-0 ml-0 lg:ml-52 transition-all duration-300 flex justify-center">
+        <main className="flex-1 min-h-0 overflow-auto w-full max-w-6xl px-4">{children}</main>
       </div>
     </div>
   )
