@@ -121,7 +121,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="flex h-dvh bg-gray-100 overflow-hidden">
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className={`lg:hidden fixed top-4 left-4 z-50 ${sidebarOpen ? "hidden" : ""}`}>
         <Button variant="outline" size="icon" onClick={toggleSidebar}>
           {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
@@ -130,6 +130,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="lg:hidden fixed top-4 right-4 z-50">
         <LanguageSwitcher />
       </div>
+
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
       <div
         className={`
@@ -149,6 +156,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setSidebarOpen(false)}
                 className={`
                   flex items-center rounded-md px-3 py-1.5 text-sm font-medium
                   ${pathname === item.href ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100"}
