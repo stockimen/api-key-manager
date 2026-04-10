@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
+import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
 import { Eye, EyeOff, ArrowLeft } from "lucide-react"
 
 export default function LoginForm() {
@@ -26,6 +27,53 @@ export default function LoginForm() {
   const [tempToken, setTempToken] = useState("")
   const [otpCode, setOtpCode] = useState("")
 
+  // Turnstile 状态
+  const [turnstileToken, setTurnstileToken] = useState("")
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const turnstileWidgetId = useRef<string | null>(null)
+
+  const renderTurnstile = useCallback(() => {
+    if (!turnstileRef.current) return
+    const siteKey = TURNSTILE_SITE_KEY
+    if (!siteKey || !(window as unknown as { turnstile?: { render: Function; remove: Function } }).turnstile) return
+    const turnstile = (window as unknown as { turnstile: { render: Function; remove: Function } }).turnstile
+    if (turnstileWidgetId.current) {
+      try { turnstile.remove(turnstileWidgetId.current) } catch {}
+    }
+    turnstileWidgetId.current = turnstile.render(turnstileRef.current, {
+      sitekey: siteKey,
+      callback: (token: string) => setTurnstileToken(token),
+      "error-callback": () => setTurnstileToken(""),
+      "expired-callback": () => setTurnstileToken(""),
+    })
+  }, [])
+
+  useEffect(() => {
+    if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+      renderTurnstile()
+      return
+    }
+    const script = document.createElement("script")
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js"
+    script.async = true
+    document.head.appendChild(script)
+    let timer: ReturnType<typeof setInterval> | undefined
+    timer = setInterval(() => {
+      if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+        clearInterval(timer)
+        renderTurnstile()
+      }
+    }, 100)
+    return () => {
+      script.remove()
+      if (timer) clearInterval(timer)
+      if (turnstileWidgetId.current) {
+        try { (window as unknown as { turnstile?: { remove: Function } }).turnstile?.remove(turnstileWidgetId.current) } catch {}
+        turnstileWidgetId.current = null
+      }
+    }
+  }, [step, renderTurnstile])
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
@@ -34,7 +82,7 @@ export default function LoginForm() {
     try {
       const data = await api.post<{ success?: boolean; requireOTP?: boolean; tempToken?: string; user?: { id: number; username: string } }>(
         "/auth/login",
-        { username, password }
+        { username, password, turnstileToken }
       )
 
       if (data.requireOTP && data.tempToken) {
@@ -50,6 +98,8 @@ export default function LoginForm() {
     } catch (err) {
       const message = err instanceof Error ? err.message : t("login.error")
       setError(message)
+      setTurnstileToken("")
+      renderTurnstile()
     } finally {
       setLoading(false)
     }
@@ -63,7 +113,7 @@ export default function LoginForm() {
     try {
       const data = await api.post<{ success: boolean; user: { id: number; username: string } }>(
         "/auth/verify-otp",
-        { tempToken, code }
+        { tempToken, code, turnstileToken }
       )
 
       if (data.success) {
@@ -74,6 +124,8 @@ export default function LoginForm() {
       const message = err instanceof Error ? err.message : t("login.error")
       setError(message)
       setOtpCode("")
+      setTurnstileToken("")
+      renderTurnstile()
     } finally {
       setLoading(false)
     }
@@ -133,6 +185,9 @@ export default function LoginForm() {
                 </Button>
               </div>
             </div>
+            {TURNSTILE_SITE_KEY && (
+              <div ref={turnstileRef} className="flex justify-center" />
+            )}
             {error && <p className="text-sm text-red-500">{error}</p>}
           </form>
         ) : (
@@ -161,6 +216,9 @@ export default function LoginForm() {
                 </InputOTPGroup>
               </InputOTP>
             </div>
+            {TURNSTILE_SITE_KEY && (
+              <div ref={turnstileRef} className="flex justify-center" />
+            )}
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             <Button
               variant="ghost"
@@ -180,7 +238,7 @@ export default function LoginForm() {
       </CardContent>
       {step === "credentials" && (
         <CardFooter>
-          <Button className="w-full" type="submit" form="login-form" disabled={loading}>
+          <Button className="w-full" type="submit" form="login-form" disabled={loading || (TURNSTILE_SITE_KEY && !turnstileToken)}>
             {loading ? t("common.loading") : t("login.button")}
           </Button>
         </CardFooter>

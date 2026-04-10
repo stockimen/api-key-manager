@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode } from "lucide-react"
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
 import QRCode from "qrcode"
+import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
 
 export default function SettingsForm() {
   const { toast } = useToast()
@@ -48,6 +49,54 @@ export default function SettingsForm() {
   const [disableCode, setDisableCode] = useState("")
   const [disableLoading, setDisableLoading] = useState(false)
   const [disableError, setDisableError] = useState("")
+
+  // Turnstile 状态（禁用两步验证时使用）
+  const [turnstileToken, setTurnstileToken] = useState("")
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const turnstileWidgetId = useRef<string | null>(null)
+
+  const renderTurnstile = useCallback(() => {
+    if (!turnstileRef.current) return
+    const siteKey = TURNSTILE_SITE_KEY
+    if (!siteKey || !(window as unknown as { turnstile?: { render: Function; remove: Function } }).turnstile) return
+    const turnstile = (window as unknown as { turnstile: { render: Function; remove: Function } }).turnstile
+    if (turnstileWidgetId.current) {
+      try { turnstile.remove(turnstileWidgetId.current) } catch {}
+    }
+    turnstileWidgetId.current = turnstile.render(turnstileRef.current, {
+      sitekey: siteKey,
+      callback: (token: string) => setTurnstileToken(token),
+      "error-callback": () => setTurnstileToken(""),
+      "expired-callback": () => setTurnstileToken(""),
+    })
+  }, [])
+
+  useEffect(() => {
+    if (totpStep !== "disable") return
+    if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+      renderTurnstile()
+      return
+    }
+    const script = document.createElement("script")
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js"
+    script.async = true
+    document.head.appendChild(script)
+    let timer: ReturnType<typeof setInterval> | undefined
+    timer = setInterval(() => {
+      if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+        clearInterval(timer)
+        renderTurnstile()
+      }
+    }, 100)
+    return () => {
+      script.remove()
+      if (timer) clearInterval(timer)
+      if (turnstileWidgetId.current) {
+        try { (window as unknown as { turnstile?: { remove: Function } }).turnstile?.remove(turnstileWidgetId.current) } catch {}
+        turnstileWidgetId.current = null
+      }
+    }
+  }, [totpStep, renderTurnstile])
 
   useEffect(() => {
     const loadData = async () => {
@@ -271,13 +320,16 @@ export default function SettingsForm() {
     setDisableLoading(true)
     setDisableError("")
     try {
-      await api.post("/auth/totp-setup", { action: "disable", code: disableCode })
+      await api.post("/auth/totp-setup", { action: "disable", code: disableCode, turnstileToken })
       setTotpEnabled(false)
       setDisableCode("")
+      setTurnstileToken("")
       toast({ title: t("auth.totpDisabled") })
     } catch (err) {
       setDisableError(err instanceof Error ? err.message : t("auth.totpVerifyFailed"))
       setDisableCode("")
+      setTurnstileToken("")
+      renderTurnstile()
     } finally {
       setDisableLoading(false)
     }
@@ -474,6 +526,9 @@ export default function SettingsForm() {
                     </InputOTPGroup>
                   </InputOTP>
                 </div>
+                {TURNSTILE_SITE_KEY && (
+                  <div ref={turnstileRef} className="flex justify-center" />
+                )}
                 {disableError && <p className="text-sm text-red-500">{disableError}</p>}
               </div>
             )}
@@ -530,10 +585,10 @@ export default function SettingsForm() {
             )}
             {totpEnabled && totpStep === "disable" && (
               <>
-                <Button variant="destructive" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6}>
+                <Button variant="destructive" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6 || (TURNSTILE_SITE_KEY && !turnstileToken)}>
                   {disableLoading ? "..." : t("auth.disableTotp")}
                 </Button>
-                <Button variant="outline" onClick={() => { setTotpStep("idle"); setDisableCode(""); setDisableError("") }}>
+                <Button variant="outline" onClick={() => { setTotpStep("idle"); setDisableCode(""); setDisableError(""); setTurnstileToken("") }}>
                   {t("common.cancel")}
                 </Button>
               </>

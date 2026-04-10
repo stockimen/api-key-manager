@@ -10,22 +10,34 @@ import {
   userKV,
 } from "@/lib/kv"
 import { verifyPassword } from "@/lib/encryption"
+import { verifyTurnstile, getClientIP } from "@/lib/turnstile"
 
 export const runtime = "edge"
 
 function getClientIdentifier(request: NextRequest, username: string): string {
-  const forwardedFor = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "unknown"
-  const ip = forwardedFor.split(",")[0]?.trim() || "unknown"
+  const ip = getClientIP(request)
   return `${ip}:${username.trim().toLowerCase()}`
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { username, password } = body as { username?: string; password?: string }
+    const { username, password, turnstileToken } = body as { username?: string; password?: string; turnstileToken?: string }
 
     if (!username || !password) {
       return NextResponse.json({ error: "用户名和密码都是必填的" }, { status: 400 })
+    }
+
+    // Turnstile 验证（在限流之前，拦截机器人减少 KV 消耗）
+    const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
+    if (turnstileSecret) {
+      if (!turnstileToken) {
+        return NextResponse.json({ error: "请完成人机验证" }, { status: 400 })
+      }
+      const isValid = await verifyTurnstile(turnstileToken, getClientIP(request))
+      if (!isValid) {
+        return NextResponse.json({ error: "人机验证失败，请重试" }, { status: 400 })
+      }
     }
 
     const rateLimitIdentifier = getClientIdentifier(request, username)

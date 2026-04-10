@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSessionFromRequest, userKV } from "@/lib/kv"
 import { generateSecret, buildQRUri, verifyTOTP } from "@/lib/totp"
+import { verifyTurnstile, getClientIP } from "@/lib/turnstile"
 
 export const runtime = "edge"
 
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { action, code } = body as { action?: string; code?: string }
+    const { action, code, turnstileToken } = body as { action?: string; code?: string; turnstileToken?: string }
 
     if (action === "generate") {
       const secret = generateSecret()
@@ -47,6 +48,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "disable") {
+      // Turnstile 验证
+      const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
+      if (turnstileSecret) {
+        if (!turnstileToken) {
+          return NextResponse.json({ error: "请完成人机验证" }, { status: 400 })
+        }
+        const isValid = await verifyTurnstile(turnstileToken, getClientIP(request))
+        if (!isValid) {
+          return NextResponse.json({ error: "人机验证失败，请重试" }, { status: 400 })
+        }
+      }
+
       const user = await userKV.getByUsername(session.username)
       if (!user) {
         return NextResponse.json({ error: "用户不存在" }, { status: 404 })
