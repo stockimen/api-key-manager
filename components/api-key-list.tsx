@@ -63,6 +63,7 @@ export default function ApiKeyList() {
     secretKey: "",
     baseUrl: "",
     monitorOnDashboard: false,
+    priority: 0,
   })
 
   const loadKeys = useCallback(async () => {
@@ -150,6 +151,7 @@ export default function ApiKeyList() {
       const data = await api.post<{ key: ApiKey }>("/keys", {
         ...newKey,
         baseUrl,
+        priority: newKey.priority,
       })
 
       setApiKeys((prev) => [...prev, data.key])
@@ -160,13 +162,13 @@ export default function ApiKeyList() {
         setNewKey({
           name: "", key: "", type: settings.settings.defaultKeyType,
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false,
+          monitorOnDashboard: false, priority: 0,
         })
       } catch {
         setNewKey({
           name: "", key: "", type: "apikey",
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false,
+          monitorOnDashboard: false, priority: 0,
         })
       }
       setFormErrors({})
@@ -195,6 +197,7 @@ export default function ApiKeyList() {
         baseUrl: editingKey.baseUrl,
         rechargeUrl: editingKey.rechargeUrl,
         monitorOnDashboard: editingKey.monitorOnDashboard,
+        priority: editingKey.priority,
       })
 
       setApiKeys((prev) => prev.map((k) => (k.id === editingKey.id ? data.key : k)))
@@ -340,6 +343,11 @@ export default function ApiKeyList() {
                       </div>
                       <p className="text-xs text-muted-foreground">{t("apiKeys.monitorOnDashboardDescription")}</p>
                     </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="priority-add">{t("apiKeys.priority")}</Label>
+                      <Input id="priority-add" type="number" min="0" value={newKey.priority} onChange={(e) => setNewKey({ ...newKey, priority: parseInt(e.target.value) || 0 })} />
+                      <p className="text-xs text-muted-foreground">{t("apiKeys.priorityDescription")}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -414,6 +422,11 @@ export default function ApiKeyList() {
                       </div>
                       <p className="text-xs text-muted-foreground">{t("apiKeys.monitorOnDashboardDescription")}</p>
                     </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="priority-edit">{t("apiKeys.priority")}</Label>
+                      <Input id="priority-edit" type="number" min="0" value={editingKey.priority ?? 0} onChange={(e) => setEditingKey({ ...editingKey, priority: parseInt(e.target.value) || 0 })} />
+                      <p className="text-xs text-muted-foreground">{t("apiKeys.priorityDescription")}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -473,6 +486,7 @@ export default function ApiKeyList() {
                 <TableHead>{t("apiKeys.baseUrl")}</TableHead>
                 <TableHead>{t("common.created")}</TableHead>
                 <TableHead>{t("apiKeys.dashboardMonitoring")}</TableHead>
+                <TableHead>{t("apiKeys.priority")}</TableHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -538,6 +552,7 @@ export default function ApiKeyList() {
                       {apiKey.monitorOnDashboard ? t("apiKeys.monitoringEnabled") : t("apiKeys.monitoringDisabled")}
                     </Badge>
                   </TableCell>
+                  <TableCell>{apiKey.priority ?? 0}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
                       <Button variant="ghost" size="icon" onClick={() => handleEditKey(apiKey)}><Pencil className="h-4 w-4" /></Button>

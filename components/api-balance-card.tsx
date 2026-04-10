@@ -98,6 +98,11 @@ export default function ApiStatusCard() {
           visibleKeys.map((key) => getCachedStatusForKey(key, t("api.status.notTested"))),
         )
 
+        statuses.sort((a, b) => {
+          const keyA = visibleKeys.find(k => k.id === a.id)
+          const keyB = visibleKeys.find(k => k.id === b.id)
+          return (keyB?.priority ?? 0) - (keyA?.priority ?? 0)
+        })
         setApiStatuses(statuses)
       } catch (error) {
         console.error("获取API状态失败:", error)
@@ -152,6 +157,11 @@ export default function ApiStatusCard() {
         }),
       )
 
+      statuses.sort((a, b) => {
+        const keyA = visibleKeys.find(k => k.id === a.id)
+        const keyB = visibleKeys.find(k => k.id === b.id)
+        return (keyB?.priority ?? 0) - (keyA?.priority ?? 0)
+      })
       setApiStatuses(statuses)
 
       toast({

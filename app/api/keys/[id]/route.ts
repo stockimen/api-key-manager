@@ -19,9 +19,9 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority } = body
     const updateData = Object.fromEntries(
-      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard })
+      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority })
         .filter(([_, v]) => v !== undefined)
     )
     const updated = await apiKeysKV.updateKey(session.userId, keyId, updateData)

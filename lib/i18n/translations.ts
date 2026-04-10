@@ -188,6 +188,8 @@ export type TranslationKey =
   | "apiKeys.rechargeUrlDescription"
   | "apiKeys.monitorOnDashboard"
   | "apiKeys.monitorOnDashboardDescription"
+  | "apiKeys.priority"
+  | "apiKeys.priorityDescription"
   | "apiKeys.dashboardMonitoring"
   | "apiKeys.monitoringEnabled"
   | "apiKeys.monitoringDisabled"
@@ -369,6 +371,8 @@ export const zhCN: Translations = {
   "apiKeys.rechargeUrlDescription": "方便在仪表盘处进行余额的充值，请输入完整URL",
   "apiKeys.monitorOnDashboard": "加入首页检测",
   "apiKeys.monitorOnDashboardDescription": "开启后，该密钥将出现在首页的连接状态检测中",
+  "apiKeys.priority": "优先级",
+  "apiKeys.priorityDescription": "数值越大，在仪表盘中排列越靠前",
   "apiKeys.dashboardMonitoring": "首页检测",
   "apiKeys.monitoringEnabled": "已启用",
   "apiKeys.monitoringDisabled": "未启用",
@@ -587,6 +591,8 @@ export const enUS: Translations = {
   "apiKeys.rechargeUrlDescription": "Convenient for recharging balance from the dashboard, please enter complete URL",
   "apiKeys.monitorOnDashboard": "Monitor on Dashboard",
   "apiKeys.monitorOnDashboardDescription": "When enabled, this key will appear in the dashboard connection status monitoring",
+  "apiKeys.priority": "Priority",
+  "apiKeys.priorityDescription": "Higher values appear first on the dashboard",
   "apiKeys.dashboardMonitoring": "Dashboard Monitoring",
   "apiKeys.monitoringEnabled": "Enabled",
   "apiKeys.monitoringDisabled": "Disabled",

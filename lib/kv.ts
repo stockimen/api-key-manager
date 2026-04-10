@@ -31,13 +31,15 @@ export interface ApiKey {
   secretKey?: string
   baseUrl: string
   monitorOnDashboard: boolean
+  priority: number
   createdAt: string
   lastUsed: string
 }
 
-// 存储层类型（旧数据可能缺少 monitorOnDashboard）
-type StoredApiKey = Omit<ApiKey, "monitorOnDashboard"> & {
+// 存储层类型（旧数据可能缺少 monitorOnDashboard 和 priority）
+type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority"> & {
   monitorOnDashboard?: boolean
+  priority?: number
 }
 
 // 系统设置类型
@@ -203,7 +205,10 @@ export const apiKeysKV = {
   async getByUserId(userId: number): Promise<ApiKey[]> {
     const encKey = getEncryptionKey()
     const keys = await getStoredApiKeys(userId)
-    return Promise.all(keys.map((key) => decryptApiKeyRecord(key, encKey)))
+    return Promise.all(keys.map(async (key) => ({
+      ...await decryptApiKeyRecord(key, encKey),
+      priority: (key as StoredApiKey).priority ?? 0,
+    })))
   },
 
   async getById(userId: number, keyId: number): Promise<ApiKey | null> {

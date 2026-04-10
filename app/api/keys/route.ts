@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     }
 
     const keys = await apiKeysKV.getByUserId(session.userId)
+    keys.sort((a, b) => b.priority - a.priority || a.id - b.id)
     return NextResponse.json({ keys })
   } catch (error) {
     console.error("Get keys error:", error)
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority } = body
 
     if (!name || !key || !provider) {
       return NextResponse.json({ error: "名称、密钥和提供商为必填项" }, { status: 400 })
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
       secretKey: type === "complex" ? secretKey : undefined,
       baseUrl: baseUrl || "",
       monitorOnDashboard: monitorOnDashboard === true,
+      priority: typeof priority === 'number' ? priority : 0,
     })
 
     return NextResponse.json({ key: newKey }, { status: 201 })
