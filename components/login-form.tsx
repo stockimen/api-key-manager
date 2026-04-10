@@ -5,13 +5,14 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
-import { Eye, EyeOff, ArrowLeft } from "lucide-react"
+import { prepareRequestOptions, encodeAuthenticationResponse } from "@/lib/webauthn-client"
+import { Eye, EyeOff, ArrowLeft, Fingerprint } from "lucide-react"
 
 export default function LoginForm() {
   const { t } = useLanguage()
@@ -27,7 +28,7 @@ export default function LoginForm() {
   const [tempToken, setTempToken] = useState("")
   const [otpCode, setOtpCode] = useState("")
 
-  // Turnstile 状态
+  // Turnstile 状态（仅在密码登录步骤使用）
   const [turnstileToken, setTurnstileToken] = useState("")
   const turnstileRef = useRef<HTMLDivElement>(null)
   const turnstileWidgetId = useRef<string | null>(null)
@@ -72,7 +73,7 @@ export default function LoginForm() {
         turnstileWidgetId.current = null
       }
     }
-  }, [step, renderTurnstile])
+  }, [renderTurnstile])
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -113,7 +114,7 @@ export default function LoginForm() {
     try {
       const data = await api.post<{ success: boolean; user: { id: number; username: string } }>(
         "/auth/verify-otp",
-        { tempToken, code, turnstileToken }
+        { tempToken, code }
       )
 
       if (data.success) {
@@ -124,6 +125,49 @@ export default function LoginForm() {
       const message = err instanceof Error ? err.message : t("login.error")
       setError(message)
       setOtpCode("")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePasskeyLogin = async () => {
+    if (typeof window === "undefined" || !window.PublicKeyCredential) {
+      setError("您的浏览器不支持 Passkey，请使用密码登录")
+      return
+    }
+    setLoading(true)
+    setError("")
+
+    try {
+      const startData = await api.post<{
+        challenge: string
+        rpId?: string
+        timeout?: number
+        allowCredentials: { type: string; id: string; transports?: string[] }[]
+        userVerification?: string
+      }>("/auth/passkey/authenticate-start", { turnstileToken })
+
+      const requestOptions = prepareRequestOptions(startData)
+      const assertion = await navigator.credentials.get({ publicKey: requestOptions }) as PublicKeyCredential
+      if (!assertion) throw new Error("认证已取消")
+
+      const encoded = encodeAuthenticationResponse(assertion)
+      const finishData = await api.post<{ success: boolean; user: { id: number; username: string } }>(
+        "/auth/passkey/authenticate-finish",
+        { credential: encoded, challenge: startData.challenge },
+      )
+
+      if (finishData.success) {
+        router.replace("/dashboard")
+        router.refresh()
+      }
+    } catch (err) {
+      if (err instanceof Error && (err.name === "AbortError" || err.message === "认证已取消")) {
+        setLoading(false)
+        return
+      }
+      const message = err instanceof Error ? err.message : t("login.error")
+      setError(message)
       setTurnstileToken("")
       renderTurnstile()
     } finally {
@@ -141,7 +185,7 @@ export default function LoginForm() {
       </CardHeader>
       <CardContent>
         {step === "credentials" ? (
-          <form id="login-form" onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">{t("common.username")}</Label>
               <Input
@@ -189,6 +233,26 @@ export default function LoginForm() {
               <div ref={turnstileRef} className="flex justify-center" />
             )}
             {error && <p className="text-sm text-red-500">{error}</p>}
+            <Button className="w-full" type="submit" disabled={loading || (TURNSTILE_SITE_KEY && !turnstileToken)}>
+              {loading ? t("common.loading") : t("login.button")}
+            </Button>
+            <div className="relative w-full">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">{t("common.or")}</span>
+              </div>
+            </div>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={handlePasskeyLogin}
+              disabled={loading || (TURNSTILE_SITE_KEY && !turnstileToken)}
+            >
+              <Fingerprint className="mr-2 h-4 w-4" />
+              {t("passkey.loginButton")}
+            </Button>
           </form>
         ) : (
           <div className="space-y-4">
@@ -216,9 +280,6 @@ export default function LoginForm() {
                 </InputOTPGroup>
               </InputOTP>
             </div>
-            {TURNSTILE_SITE_KEY && (
-              <div ref={turnstileRef} className="flex justify-center" />
-            )}
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             <Button
               variant="ghost"
@@ -236,13 +297,6 @@ export default function LoginForm() {
           </div>
         )}
       </CardContent>
-      {step === "credentials" && (
-        <CardFooter>
-          <Button className="w-full" type="submit" form="login-form" disabled={loading || (TURNSTILE_SITE_KEY && !turnstileToken)}>
-            {loading ? t("common.loading") : t("login.button")}
-          </Button>
-        </CardFooter>
-      )}
     </Card>
   )
 }

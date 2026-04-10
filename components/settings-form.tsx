@@ -11,10 +11,11 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode } from "lucide-react"
+import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus } from "lucide-react"
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
 import QRCode from "qrcode"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
+import { isWebAuthnSupported, prepareCreationOptions, encodeRegistrationResponse } from "@/lib/webauthn-client"
 
 export default function SettingsForm() {
   const { toast } = useToast()
@@ -98,6 +99,76 @@ export default function SettingsForm() {
     }
   }, [totpStep, renderTurnstile])
 
+  // Passkey 状态
+  const [passkeys, setPasskeys] = useState<{ id: string; name: string; createdAt: string; transports?: string[] }[]>([])
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [passkeySupported] = useState(() => typeof window !== "undefined" && !!window.PublicKeyCredential)
+
+  const loadPasskeys = async () => {
+    try {
+      const data = await api.get<{ passkeys: { id: string; name: string; createdAt: string; transports?: string[] }[] }>("/auth/passkey/list")
+      setPasskeys(data.passkeys)
+    } catch {
+      // 忽略加载失败
+    }
+  }
+
+  const handleAddPasskey = async () => {
+    if (!isWebAuthnSupported()) return
+    setPasskeyLoading(true)
+    try {
+      const startData = await api.post<{
+        challenge: string
+        rp: { name: string; id: string }
+        user: { id: string; name: string; displayName: string }
+        pubKeyCredParams: { type: string; alg: number }[]
+        timeout?: number
+        excludeCredentials: { type: string; id: string; transports?: string[] }[]
+        authenticatorSelection: { authenticatorAttachment?: string; residentKey?: string; userVerification?: string }
+        attestation?: string
+        credentialName?: string
+      }>("/auth/passkey/register-start", { name: "Passkey" })
+
+      const creationOptions = prepareCreationOptions(startData)
+      const credential = await navigator.credentials.create({ publicKey: creationOptions }) as PublicKeyCredential
+      if (!credential) throw new Error("注册已取消")
+
+      const encoded = encodeRegistrationResponse(credential)
+      await api.post("/auth/passkey/register-finish", {
+        credential: encoded,
+        challenge: startData.challenge,
+        name: startData.credentialName || "Passkey",
+      })
+
+      toast({ title: t("passkey.registerSuccess") })
+      loadPasskeys()
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return
+      toast({
+        title: t("common.error"),
+        description: err instanceof Error ? err.message : t("passkey.registerFailed"),
+        variant: "destructive",
+      })
+    } finally {
+      setPasskeyLoading(false)
+    }
+  }
+
+  const handleDeletePasskey = async (credentialId: string) => {
+    if (!confirm(t("apiKeys.deleteConfirm"))) return
+    try {
+      await api.delete(`/auth/passkey/${encodeURIComponent(credentialId)}`)
+      toast({ title: t("passkey.deleteSuccess") })
+      loadPasskeys()
+    } catch (err) {
+      toast({
+        title: t("common.error"),
+        description: err instanceof Error ? err.message : t("passkey.deleteFailed"),
+        variant: "destructive",
+      })
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -123,6 +194,7 @@ export default function SettingsForm() {
     }
 
     loadData()
+    loadPasskeys()
   }, [])
 
   // 本地生成 QR 码
@@ -322,6 +394,7 @@ export default function SettingsForm() {
     try {
       await api.post("/auth/totp-setup", { action: "disable", code: disableCode, turnstileToken })
       setTotpEnabled(false)
+      setTotpStep("idle")
       setDisableCode("")
       setTurnstileToken("")
       toast({ title: t("auth.totpDisabled") })
@@ -610,6 +683,51 @@ export default function SettingsForm() {
             )}
           </CardFooter>
         </Card>
+
+        {/* Passkey 通行密钥 */}
+        {passkeySupported && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Fingerprint className="h-5 w-5" />
+                {t("passkey.title")}
+              </CardTitle>
+              <CardDescription>{t("passkey.description")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {passkeys.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t("passkey.noPasskeys")}</p>
+              )}
+              {passkeys.map((pk) => (
+                <div key={pk.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">{pk.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(pk.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeletePasskey(pk.id)}
+                    aria-label={t("passkey.delete")}
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleAddPasskey} disabled={passkeyLoading}>
+                <Plus className="mr-2 h-4 w-4" />
+                {passkeyLoading ? "..." : t("passkey.add")}
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
       </TabsContent>
 
       <TabsContent value="language">

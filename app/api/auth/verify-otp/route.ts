@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { tempTokenKV, sessionKV, userKV, createSessionCookie, loginRateLimitKV } from "@/lib/kv"
 import { verifyTOTP } from "@/lib/totp"
-import { verifyTurnstile, getClientIP } from "@/lib/turnstile"
 
 export const runtime = "edge"
 
@@ -10,22 +9,10 @@ const MAX_OTP_ATTEMPTS = 5
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { tempToken, code, turnstileToken } = body as { tempToken?: string; code?: string; turnstileToken?: string }
+    const { tempToken, code } = body as { tempToken?: string; code?: string }
 
     if (!tempToken || !code) {
       return NextResponse.json({ error: "缺少必要参数" }, { status: 400 })
-    }
-
-    // Turnstile 验证（在限流之前，拦截机器人）
-    const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
-    if (turnstileSecret) {
-      if (!turnstileToken) {
-        return NextResponse.json({ error: "请完成人机验证" }, { status: 400 })
-      }
-      const isValid = await verifyTurnstile(turnstileToken, getClientIP(request))
-      if (!isValid) {
-        return NextResponse.json({ error: "人机验证失败，请重试" }, { status: 400 })
-      }
     }
 
     // 速率限制检查

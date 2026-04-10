@@ -436,6 +436,104 @@ export function isLoginRateLimited(record: LoginRateLimitRecord | null): boolean
   return Boolean(record && record.count >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS)
 }
 
+// ========== Passkey 凭证存储 ==========
+
+export interface PasskeyCredential {
+  id: string                    // base64url 编码的 credentialId
+  publicKeyJwk: JsonWebKey
+  publicKeyAlgorithm: number    // COSE 算法标识 (-7=ES256, -257=RS256)
+  signCount: number
+  transports?: string[]
+  name: string                  // 用户命名，如 "iPhone 15"
+  createdAt: string
+}
+
+const PASSKEY_CHALLENGE_TTL = 300 // 5 分钟
+
+export const passkeysKV = {
+  async getByUserId(userId: number): Promise<PasskeyCredential[]> {
+    const kv = getKV()
+    const data = await kv.get(`passkeys:${userId}`)
+    if (!data) return []
+    return JSON.parse(data) as PasskeyCredential[]
+  },
+
+  async addCredential(userId: number, username: string, credential: PasskeyCredential): Promise<void> {
+    const kv = getKV()
+    const creds = await this.getByUserId(userId)
+    creds.push(credential)
+    await kv.put(`passkeys:${userId}`, JSON.stringify(creds))
+    // 索引：credentialId → userId + username
+    await kv.put(`passkey-cred:${credential.id}`, JSON.stringify({ userId, username }))
+  },
+
+  async deleteCredential(userId: number, credentialId: string): Promise<boolean> {
+    const kv = getKV()
+    const creds = await this.getByUserId(userId)
+    const index = creds.findIndex((c) => c.id === credentialId)
+    if (index === -1) return false
+    creds.splice(index, 1)
+    await kv.put(`passkeys:${userId}`, JSON.stringify(creds))
+    await kv.delete(`passkey-cred:${credentialId}`)
+    return true
+  },
+
+  async updateSignCount(userId: number, credentialId: string, signCount: number): Promise<void> {
+    const kv = getKV()
+    const creds = await this.getByUserId(userId)
+    const cred = creds.find((c) => c.id === credentialId)
+    if (cred) {
+      cred.signCount = signCount
+      await kv.put(`passkeys:${userId}`, JSON.stringify(creds))
+    }
+  },
+
+  async findByCredentialId(credentialId: string): Promise<{ userId: number; username: string } | null> {
+    const kv = getKV()
+    const data = await kv.get(`passkey-cred:${credentialId}`)
+    if (!data) return null
+    return JSON.parse(data) as { userId: number; username: string }
+  },
+}
+
+export const webauthnChallengeKV = {
+  async create(params: {
+    challenge: string
+    type: "registration" | "authentication"
+    userId?: number
+    username?: string
+  }): Promise<void> {
+    const kv = getKV()
+    await kv.put(
+      `webauthn-challenge:${params.challenge}`,
+      JSON.stringify({
+        type: params.type,
+        userId: params.userId,
+        username: params.username,
+        createdAt: new Date().toISOString(),
+      }),
+      { expirationTtl: PASSKEY_CHALLENGE_TTL },
+    )
+  },
+
+  async get(challenge: string): Promise<{
+    type: "registration" | "authentication"
+    userId?: number
+    username?: string
+    createdAt: string
+  } | null> {
+    const kv = getKV()
+    const data = await kv.get(`webauthn-challenge:${challenge}`)
+    if (!data) return null
+    return JSON.parse(data)
+  },
+
+  async delete(challenge: string): Promise<void> {
+    const kv = getKV()
+    await kv.delete(`webauthn-challenge:${challenge}`)
+  },
+}
+
 // ========== 连接测试缓存 ==========
 
 function getTestCacheKey(userId: number, keyId: number): string {

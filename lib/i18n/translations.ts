@@ -259,6 +259,17 @@ export type TranslationKey =
   | "home.footer.copyright"
   | "api.status.urlTestDescription"
   | "settings.passwordLengthHint"
+  | "passkey.title"
+  | "passkey.description"
+  | "passkey.noPasskeys"
+  | "passkey.add"
+  | "passkey.delete"
+  | "passkey.registerSuccess"
+  | "passkey.registerFailed"
+  | "passkey.deleteSuccess"
+  | "passkey.deleteFailed"
+  | "passkey.loginButton"
+  | "common.or"
 
 export interface Translations {
   [key: string]: string
@@ -433,6 +444,20 @@ export const zhCN: Translations = {
   "settings.selectLanguage": "选择语言",
   "settings.languageChanged": "语言已更改",
   "settings.passwordLengthHint": "密码长度至少为6个字符",
+
+  // Passkey 通行密钥
+  "passkey.title": "通行密钥",
+  "passkey.description": "使用指纹、面部识别或设备 PIN 快速安全地登录，无需输入密码。",
+  "passkey.noPasskeys": "尚未注册通行密钥。",
+  "passkey.add": "添加通行密钥",
+  "passkey.delete": "删除",
+  "passkey.registerSuccess": "通行密钥注册成功",
+  "passkey.registerFailed": "通行密钥注册失败",
+  "passkey.deleteSuccess": "通行密钥已删除",
+  "passkey.deleteFailed": "删除通行密钥失败",
+  "passkey.loginButton": "Passkey 登录",
+
+  "common.or": "或",
 
   // 提示相关
   "toast.copied": "已复制",
@@ -670,6 +695,20 @@ export const enUS: Translations = {
   "settings.selectLanguage": "Select Language",
   "settings.languageChanged": "Language changed",
   "settings.passwordLengthHint": "Password must be at least 6 characters",
+
+  // Passkey
+  "passkey.title": "Passkeys",
+  "passkey.description": "Sign in quickly and securely using your fingerprint, face, or device PIN — no password needed.",
+  "passkey.noPasskeys": "No passkeys registered yet.",
+  "passkey.add": "Add Passkey",
+  "passkey.delete": "Delete",
+  "passkey.registerSuccess": "Passkey registered successfully",
+  "passkey.registerFailed": "Passkey registration failed",
+  "passkey.deleteSuccess": "Passkey deleted",
+  "passkey.deleteFailed": "Failed to delete passkey",
+  "passkey.loginButton": "Sign in with Passkey",
+
+  "common.or": "or",
 
   // 提示相关
   "toast.copied": "Copied",
