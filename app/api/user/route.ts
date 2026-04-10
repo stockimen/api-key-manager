@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         email: user.email,
         createdAt: user.createdAt,
         role: user.role,
+        otpEnabled: user.otpEnabled === true,
       },
     })
   } catch (error) {

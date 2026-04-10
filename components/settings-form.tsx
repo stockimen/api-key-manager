@@ -11,7 +11,9 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, AlertCircle } from "lucide-react"
+import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode } from "lucide-react"
+import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
+import QRCode from "qrcode"
 
 export default function SettingsForm() {
   const { toast } = useToast()
@@ -34,12 +36,26 @@ export default function SettingsForm() {
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [passwordError, setPasswordError] = useState("")
 
+  // TOTP 状态
+  const [totpEnabled, setTotpEnabled] = useState(false)
+  const [totpStep, setTotpStep] = useState<"idle" | "setup" | "disable">("idle")
+  const [totpSecret, setTotpSecret] = useState("")
+  const [totpQrUri, setTotpQrUri] = useState("")
+  const [totpQrDataUrl, setTotpQrDataUrl] = useState("")
+  const [totpCode, setTotpCode] = useState("")
+  const [totpLoading, setTotpLoading] = useState(false)
+  const [totpError, setTotpError] = useState("")
+  const [disableCode, setDisableCode] = useState("")
+  const [disableLoading, setDisableLoading] = useState(false)
+  const [disableError, setDisableError] = useState("")
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const userData = await api.get<{ user: { username: string; email: string } }>("/user")
+        const userData = await api.get<{ user: { username: string; email: string; otpEnabled?: boolean } }>("/user")
         setUsername(userData.user.username)
         setEmail(userData.user.email)
+        setTotpEnabled(userData.user.otpEnabled === true)
       } catch (error) {
         console.error("加载用户信息失败:", error)
       }
@@ -59,6 +75,17 @@ export default function SettingsForm() {
 
     loadData()
   }, [])
+
+  // 本地生成 QR 码
+  useEffect(() => {
+    if (!totpQrUri) {
+      setTotpQrDataUrl("")
+      return
+    }
+    QRCode.toDataURL(totpQrUri, { width: 200, margin: 2 })
+      .then(setTotpQrDataUrl)
+      .catch(() => setTotpQrDataUrl(""))
+  }, [totpQrUri])
 
   useEffect(() => {
     if (systemSuccess) {
@@ -203,6 +230,57 @@ export default function SettingsForm() {
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return re.test(email)
+  }
+
+  const handleGenerateTotp = async () => {
+    setTotpLoading(true)
+    setTotpError("")
+    try {
+      const data = await api.post<{ secret: string; qrUri: string }>("/auth/totp-setup", { action: "generate" })
+      setTotpSecret(data.secret)
+      setTotpQrUri(data.qrUri)
+      setTotpStep("setup")
+    } catch {
+      setTotpError(t("auth.totpSetupFailed"))
+    } finally {
+      setTotpLoading(false)
+    }
+  }
+
+  const handleEnableTotp = async (code?: string) => {
+    const otpValue = code ?? totpCode
+    if (otpValue.length !== 6) return
+    setTotpLoading(true)
+    setTotpError("")
+    try {
+      await api.post("/auth/totp-setup", { action: "enable", code: otpValue })
+      setTotpEnabled(true)
+      setTotpStep("idle")
+      setTotpCode("")
+      toast({ title: t("auth.totpEnabled") })
+    } catch (err) {
+      setTotpError(err instanceof Error ? err.message : t("auth.totpVerifyFailed"))
+      setTotpCode("")
+    } finally {
+      setTotpLoading(false)
+    }
+  }
+
+  const handleDisableTotp = async () => {
+    if (disableCode.length !== 6) return
+    setDisableLoading(true)
+    setDisableError("")
+    try {
+      await api.post("/auth/totp-setup", { action: "disable", code: disableCode })
+      setTotpEnabled(false)
+      setDisableCode("")
+      toast({ title: t("auth.totpDisabled") })
+    } catch (err) {
+      setDisableError(err instanceof Error ? err.message : t("auth.totpVerifyFailed"))
+      setDisableCode("")
+    } finally {
+      setDisableLoading(false)
+    }
   }
 
   return (
@@ -351,6 +429,130 @@ export default function SettingsForm() {
             <Button onClick={saveSecuritySettings} disabled={passwordSaving}>
               {passwordSaving ? "更新中..." : t("settings.changePassword")}
             </Button>
+          </CardFooter>
+        </Card>
+
+        {/* TOTP 两步验证 */}
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {totpEnabled ? <Shield className="h-5 w-5 text-green-600" /> : <ShieldOff className="h-5 w-5 text-muted-foreground" />}
+              {t("auth.totpTitle")}
+            </CardTitle>
+            <CardDescription>{t("auth.totpDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {totpError && (
+              <Alert className="bg-red-50 border-red-200 text-red-800">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription>{totpError}</AlertDescription>
+              </Alert>
+            )}
+
+            {totpEnabled && totpStep === "idle" && (
+              <Alert className="bg-green-50 border-green-200 text-green-800">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription>{t("auth.totpEnabledStatus")}</AlertDescription>
+              </Alert>
+            )}
+
+            {totpEnabled && totpStep === "disable" && (
+              <div className="space-y-2">
+                <Label>{t("auth.enterDisableCode")}</Label>
+                <div className="flex items-center gap-2">
+                  <InputOTP maxLength={6} value={disableCode} onChange={setDisableCode}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                {disableError && <p className="text-sm text-red-500">{disableError}</p>}
+              </div>
+            )}
+
+            {!totpEnabled && totpStep === "idle" && (
+              <p className="text-sm text-muted-foreground">{t("auth.totpNotEnabled")}</p>
+            )}
+
+            {totpStep === "setup" && (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center gap-4">
+                  <QrCode className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">{t("auth.scanQrCode")}</p>
+                  {totpQrDataUrl && (
+                    <img
+                      src={totpQrDataUrl}
+                      alt="TOTP QR Code"
+                      className="rounded-lg border"
+                      width={200}
+                      height={200}
+                    />
+                  )}
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-1">{t("auth.manualEntry")}</p>
+                    <code className="bg-muted px-2 py-1 rounded text-xs break-all select-all">{totpSecret}</code>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("auth.verifyAndEnable")}</Label>
+                  <div className="flex justify-center">
+                    <InputOTP maxLength={6} value={totpCode} onChange={(value) => { setTotpCode(value); if (value.length === 6 && !totpLoading) handleEnableTotp(value) }}>
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                      </InputOTPGroup>
+                      <InputOTPSeparator />
+                      <InputOTPGroup>
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="gap-2">
+            {totpEnabled && totpStep === "idle" && (
+              <Button variant="destructive" onClick={() => { setTotpStep("disable"); setDisableCode(""); setDisableError("") }}>
+                {t("auth.disableTotp")}
+              </Button>
+            )}
+            {totpEnabled && totpStep === "disable" && (
+              <>
+                <Button variant="destructive" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6}>
+                  {disableLoading ? "..." : t("auth.disableTotp")}
+                </Button>
+                <Button variant="outline" onClick={() => { setTotpStep("idle"); setDisableCode(""); setDisableError("") }}>
+                  {t("common.cancel")}
+                </Button>
+              </>
+            )}
+            {!totpEnabled && totpStep === "idle" && (
+              <Button onClick={handleGenerateTotp} disabled={totpLoading}>
+                {totpLoading ? "..." : t("auth.totpSetup")}
+              </Button>
+            )}
+            {totpStep === "setup" && (
+              <>
+                <Button onClick={() => handleEnableTotp()} disabled={totpLoading || totpCode.length !== 6}>
+                  {totpLoading ? "..." : t("auth.verifyAndEnable")}
+                </Button>
+                <Button variant="outline" onClick={() => { setTotpStep("idle"); setTotpCode(""); setTotpError("") }}>
+                  {t("common.cancel")}
+                </Button>
+              </>
+            )}
           </CardFooter>
         </Card>
       </TabsContent>

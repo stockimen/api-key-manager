@@ -15,6 +15,8 @@ export interface User {
   salt: string
   email: string
   role: UserRole
+  otpSecret?: string
+  otpEnabled?: boolean
   createdAt: string
 }
 
@@ -374,6 +376,29 @@ export const sessionKV = {
   async delete(sessionId: string): Promise<void> {
     const kv = getKV()
     await kv.delete(`session:${sessionId}`)
+  },
+}
+
+// ========== 临时 Token（OTP 登录流程） ==========
+
+export const tempTokenKV = {
+  async create(userId: number, username: string): Promise<string> {
+    const kv = getKV()
+    const token = crypto.randomUUID()
+    await kv.put(`temp-token:${token}`, JSON.stringify({ userId, username, createdAt: new Date().toISOString() }), { expirationTtl: 300 })
+    return token
+  },
+
+  async get(token: string): Promise<{ userId: number; username: string } | null> {
+    const kv = getKV()
+    const data = await kv.get(`temp-token:${token}`)
+    if (!data) return null
+    return JSON.parse(data) as { userId: number; username: string }
+  },
+
+  async delete(token: string): Promise<void> {
+    const kv = getKV()
+    await kv.delete(`temp-token:${token}`)
   },
 }
 

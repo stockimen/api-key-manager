@@ -6,6 +6,7 @@ import {
   isSetupComplete,
   loginRateLimitKV,
   sessionKV,
+  tempTokenKV,
   userKV,
 } from "@/lib/kv"
 import { verifyPassword } from "@/lib/encryption"
@@ -52,6 +53,12 @@ export async function POST(request: NextRequest) {
     }
 
     await loginRateLimitKV.clear(rateLimitIdentifier)
+
+    // 检查是否启用了 TOTP
+    if (user.otpEnabled) {
+      const tempToken = await tempTokenKV.create(user.id, user.username)
+      return NextResponse.json({ requireOTP: true, tempToken })
+    }
 
     const sessionId = await sessionKV.create(user.id, user.username, user.role)
 

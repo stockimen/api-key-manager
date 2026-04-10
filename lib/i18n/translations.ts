@@ -61,6 +61,22 @@ export type TranslationKey =
   | "login.button"
   | "login.error"
   | "login.noAccount"
+  | "auth.enterOtp"
+  | "auth.backToLogin"
+  | "auth.totpTitle"
+  | "auth.totpDescription"
+  | "auth.totpSetup"
+  | "auth.totpEnabled"
+  | "auth.totpDisabled"
+  | "auth.totpEnabledStatus"
+  | "auth.totpNotEnabled"
+  | "auth.scanQrCode"
+  | "auth.manualEntry"
+  | "auth.verifyAndEnable"
+  | "auth.disableTotp"
+  | "auth.enterDisableCode"
+  | "auth.totpSetupFailed"
+  | "auth.totpVerifyFailed"
   | "register.title"
   | "register.description"
   | "register.button"
@@ -316,6 +332,23 @@ export const zhCN: Translations = {
   "login.error": "用户名或密码错误",
   "login.noAccount": "还没有账号？",
 
+  "auth.enterOtp": "请输入两步验证码",
+  "auth.backToLogin": "返回登录",
+  "auth.totpTitle": "两步验证（TOTP）",
+  "auth.totpDescription": "使用身份验证器 App（如 Google Authenticator）生成动态验证码，为你的账号增加额外的安全保护。",
+  "auth.totpSetup": "绑定验证器",
+  "auth.totpEnabled": "两步验证已启用",
+  "auth.totpDisabled": "两步验证已关闭",
+  "auth.totpEnabledStatus": "两步验证已启用，登录时需要输入验证码。",
+  "auth.totpNotEnabled": "两步验证未启用。启用后，每次登录除了输入密码外，还需要输入验证码。",
+  "auth.scanQrCode": "请使用身份验证器 App 扫描下方二维码",
+  "auth.manualEntry": "或手动输入密钥：",
+  "auth.verifyAndEnable": "输入验证码以确认启用",
+  "auth.disableTotp": "关闭两步验证",
+  "auth.enterDisableCode": "输入验证码以关闭两步验证",
+  "auth.totpSetupFailed": "生成密钥失败，请重试",
+  "auth.totpVerifyFailed": "验证码错误",
+
   // 仪表盘相关
   "dashboard.title": "仪表盘",
   "dashboard.activeKeys": "活跃密钥",
@@ -533,6 +566,23 @@ export const enUS: Translations = {
   "login.button": "Login",
   "login.error": "Invalid username or password",
   "login.noAccount": "Don't have an account?",
+
+  "auth.enterOtp": "Enter your two-factor authentication code",
+  "auth.backToLogin": "Back to login",
+  "auth.totpTitle": "Two-Factor Authentication (TOTP)",
+  "auth.totpDescription": "Use an authenticator app (e.g., Google Authenticator) to generate verification codes for extra security.",
+  "auth.totpSetup": "Set Up Authenticator",
+  "auth.totpEnabled": "Two-factor authentication enabled",
+  "auth.totpDisabled": "Two-factor authentication disabled",
+  "auth.totpEnabledStatus": "Two-factor authentication is enabled. A verification code is required at login.",
+  "auth.totpNotEnabled": "Two-factor authentication is not enabled. Once enabled, you'll need both your password and a verification code to log in.",
+  "auth.scanQrCode": "Scan the QR code below with your authenticator app",
+  "auth.manualEntry": "Or enter the key manually:",
+  "auth.verifyAndEnable": "Enter the code to confirm and enable",
+  "auth.disableTotp": "Disable Two-Factor Auth",
+  "auth.enterDisableCode": "Enter code to disable two-factor authentication",
+  "auth.totpSetupFailed": "Failed to generate secret, please try again",
+  "auth.totpVerifyFailed": "Invalid verification code",
 
   // 仪表盘相关
   "dashboard.title": "Dashboard",
