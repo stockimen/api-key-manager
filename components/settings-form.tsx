@@ -640,13 +640,13 @@ export default function SettingsForm() {
           </CardContent>
           <CardFooter className="gap-2">
             {totpEnabled && totpStep === "idle" && (
-              <Button variant="outline" onClick={() => { setTotpStep("disable"); setDisableCode(""); setDisableError("") }}>
+              <Button onClick={() => { setTotpStep("disable"); setDisableCode(""); setDisableError("") }}>
                 {t("auth.disableTotp")}
               </Button>
             )}
             {totpEnabled && totpStep === "disable" && (
               <>
-                <Button variant="outline" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6 || (TURNSTILE_SITE_KEY && !turnstileToken)}>
+                <Button onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6 || (TURNSTILE_SITE_KEY && !turnstileToken)}>
                   {disableLoading ? "..." : t("auth.disableTotp")}
                 </Button>
                 <Button variant="outline" onClick={() => { setTotpStep("idle"); setDisableCode(""); setDisableError(""); setTurnstileToken("") }}>

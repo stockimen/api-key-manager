@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Eye, EyeOff, Plus, Pencil, Trash2, Copy, Check } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -44,7 +44,6 @@ export default function ApiKeyList() {
   const { toast } = useToast()
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [loading, setLoading] = useState(true)
-  const [visibleKeys, setVisibleKeys] = useState<Record<number, boolean>>({})
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null)
@@ -131,10 +130,6 @@ export default function ApiKeyList() {
     return filteredKeys.slice(startIndex, startIndex + PAGE_SIZE)
   }, [currentPage, filteredKeys])
 
-  const toggleKeyVisibility = (id: number) => {
-    setVisibleKeys((prev) => ({ ...prev, [id]: !prev[id] }))
-  }
-
   const validateForm = (name: string, key: string) => {
     const errors: { name?: string; key?: string } = {}
     if (!name.trim()) errors.name = t("error.required")
@@ -220,10 +215,30 @@ export default function ApiKeyList() {
     }
   }
 
+  const toggleMonitoring = async (apiKey: ApiKey) => {
+    const newValue = !apiKey.monitorOnDashboard
+    try {
+      const data = await api.put<{ key: ApiKey }>(`/keys/${apiKey.id}`, {
+        name: apiKey.name,
+        key: apiKey.key,
+        provider: apiKey.provider,
+        appId: apiKey.appId,
+        secretKey: apiKey.secretKey,
+        baseUrl: apiKey.baseUrl,
+        rechargeUrl: apiKey.rechargeUrl,
+        monitorOnDashboard: newValue,
+        priority: apiKey.priority,
+      })
+      setApiKeys((prev) => prev.map((k) => (k.id === apiKey.id ? data.key : k)))
+    } catch {
+      toast({ title: t("toast.error"), variant: "destructive" })
+    }
+  }
+
   const maskKey = (key: string) => {
     if (!key) return ""
-    if (key.length <= 8) return key.substring(0, 2) + "•".repeat(Math.max(1, key.length - 4)) + key.substring(key.length - 2)
-    return key.substring(0, 4) + "•".repeat(Math.max(1, Math.min(20, key.length - 8))) + key.substring(key.length - 4)
+    if (key.length <= 8) return key.substring(0, 2) + "•••" + key.substring(key.length - 2)
+    return key.substring(0, 4) + "•••" + key.substring(key.length - 4)
   }
 
   const copyToClipboard = (text: string, identifier: string) => {
@@ -501,56 +516,59 @@ export default function ApiKeyList() {
                   </TableCell>
                   <TableCell>{apiKey.provider}</TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <code className="bg-muted px-1 py-0.5 rounded text-sm">
-                        {visibleKeys[apiKey.id] ? apiKey.key : maskKey(apiKey.key)}
-                      </code>
-                      <Button variant="ghost" size="icon" onClick={() => toggleKeyVisibility(apiKey.id)}>
-                        {visibleKeys[apiKey.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                    <div className="space-y-1">
+                      <code
+                        className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none hover:bg-muted/80 transition-colors"
                         onClick={() => copyToClipboard(apiKey.key, `key-${apiKey.id}`)}
-                        className={copiedStates[`key-${apiKey.id}`] ? "text-green-500" : ""}
+                        title={t("common.copy")}
                       >
-                        {copiedStates[`key-${apiKey.id}`] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    {apiKey.type === "complex" && apiKey.appId && (
-                      <div className="mt-1">
-                        <div className="flex items-center space-x-2">
-                          <div className="text-xs text-muted-foreground">{t("apiKeys.appId")}:</div>
-                          <code className="bg-muted px-1 py-0.5 rounded text-sm">{visibleKeys[apiKey.id] ? apiKey.appId : maskKey(apiKey.appId)}</code>
-                          <Button variant="ghost" size="icon" onClick={() => copyToClipboard(apiKey.appId!, `appId-${apiKey.id}`)} className={`h-6 w-6 ${copiedStates[`appId-${apiKey.id}`] ? "text-green-500" : ""}`}>
-                            {copiedStates[`appId-${apiKey.id}`] ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                          </Button>
+                        {copiedStates[`key-${apiKey.id}`] ? "✓" : maskKey(apiKey.key)}
+                      </code>
+                      {apiKey.type === "complex" && apiKey.appId && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">{t("apiKeys.appId")}:</span>
+                          <code
+                            className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                            onClick={() => copyToClipboard(apiKey.appId!, `appId-${apiKey.id}`)}
+                            title={t("common.copy")}
+                          >
+                            {copiedStates[`appId-${apiKey.id}`] ? "✓" : maskKey(apiKey.appId)}
+                          </code>
                         </div>
-                        {apiKey.secretKey && (
-                          <div className="flex items-center space-x-2 mt-1">
-                            <div className="text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</div>
-                            <code className="bg-muted px-1 py-0.5 rounded text-sm">{visibleKeys[apiKey.id] ? apiKey.secretKey : maskKey(apiKey.secretKey)}</code>
-                            <Button variant="ghost" size="icon" onClick={() => copyToClipboard(apiKey.secretKey!, `secretKey-${apiKey.id}`)} className={`h-6 w-6 ${copiedStates[`secretKey-${apiKey.id}`] ? "text-green-500" : ""}`}>
-                              {copiedStates[`secretKey-${apiKey.id}`] ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      {apiKey.type === "complex" && apiKey.secretKey && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</span>
+                          <code
+                            className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                            onClick={() => copyToClipboard(apiKey.secretKey!, `secretKey-${apiKey.id}`)}
+                            title={t("common.copy")}
+                          >
+                            {copiedStates[`secretKey-${apiKey.id}`] ? "✓" : maskKey(apiKey.secretKey)}
+                          </code>
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <code className="bg-muted px-1 py-0.5 rounded text-sm truncate max-w-[150px]">{apiKey.baseUrl}</code>
-                      <Button variant="ghost" size="icon" onClick={() => copyToClipboard(apiKey.baseUrl, `url-${apiKey.id}`)} className={copiedStates[`url-${apiKey.id}`] ? "text-green-500" : ""}>
-                        {copiedStates[`url-${apiKey.id}`] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                    </div>
+                    <code
+                      className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none truncate max-w-[150px] inline-block hover:bg-muted/80 transition-colors"
+                      onClick={() => copyToClipboard(apiKey.baseUrl, `url-${apiKey.id}`)}
+                      title={t("common.copy")}
+                    >
+                      {apiKey.baseUrl}
+                    </code>
                   </TableCell>
                   <TableCell>{apiKey.createdAt}</TableCell>
                   <TableCell>
-                    <Badge variant={apiKey.monitorOnDashboard ? "default" : "outline"}>
+                    <Button
+                      variant={apiKey.monitorOnDashboard ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => toggleMonitoring(apiKey)}
+                    >
                       {apiKey.monitorOnDashboard ? t("apiKeys.monitoringEnabled") : t("apiKeys.monitoringDisabled")}
-                    </Badge>
+                    </Button>
                   </TableCell>
                   <TableCell>{apiKey.priority ?? 0}</TableCell>
                   <TableCell className="text-right">
