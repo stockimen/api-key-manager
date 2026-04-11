@@ -12,7 +12,7 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus } from "lucide-react"
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
+import { InputOTP } from "@/components/ui/input-otp"
 import QRCode from "qrcode"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
 import { isWebAuthnSupported, prepareCreationOptions, encodeRegistrationResponse } from "@/lib/webauthn-client"
@@ -585,19 +585,11 @@ export default function SettingsForm() {
               <div className="space-y-2">
                 <Label>{t("auth.enterDisableCode")}</Label>
                 <div className="flex items-center gap-2">
-                  <InputOTP maxLength={6} value={disableCode} onChange={setDisableCode}>
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={3} />
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
+                  <InputOTP
+                    maxLength={6}
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  />
                 </div>
                 {TURNSTILE_SITE_KEY && (
                   <div ref={turnstileRef} className="flex justify-center" />
@@ -632,19 +624,15 @@ export default function SettingsForm() {
                 <div className="space-y-2">
                   <Label>{t("auth.verifyAndEnable")}</Label>
                   <div className="flex justify-center">
-                    <InputOTP maxLength={6} value={totpCode} onChange={(value) => { setTotpCode(value); if (value.length === 6 && !totpLoading) handleEnableTotp(value) }}>
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                      </InputOTPGroup>
-                      <InputOTPSeparator />
-                      <InputOTPGroup>
-                        <InputOTPSlot index={3} />
-                        <InputOTPSlot index={4} />
-                        <InputOTPSlot index={5} />
-                      </InputOTPGroup>
-                    </InputOTP>
+                    <InputOTP
+                      maxLength={6}
+                      value={totpCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 6)
+                        setTotpCode(val)
+                        if (val.length === 6 && !totpLoading) handleEnableTotp(val)
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -652,13 +640,13 @@ export default function SettingsForm() {
           </CardContent>
           <CardFooter className="gap-2">
             {totpEnabled && totpStep === "idle" && (
-              <Button variant="destructive" onClick={() => { setTotpStep("disable"); setDisableCode(""); setDisableError("") }}>
+              <Button variant="outline" onClick={() => { setTotpStep("disable"); setDisableCode(""); setDisableError("") }}>
                 {t("auth.disableTotp")}
               </Button>
             )}
             {totpEnabled && totpStep === "disable" && (
               <>
-                <Button variant="destructive" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6 || (TURNSTILE_SITE_KEY && !turnstileToken)}>
+                <Button variant="outline" onClick={handleDisableTotp} disabled={disableLoading || disableCode.length !== 6 || (TURNSTILE_SITE_KEY && !turnstileToken)}>
                   {disableLoading ? "..." : t("auth.disableTotp")}
                 </Button>
                 <Button variant="outline" onClick={() => { setTotpStep("idle"); setDisableCode(""); setDisableError(""); setTurnstileToken("") }}>

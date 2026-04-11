@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp"
+import { InputOTP } from "@/components/ui/input-otp"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
@@ -260,25 +260,14 @@ export default function LoginForm() {
               <InputOTP
                 maxLength={6}
                 value={otpCode}
-                onChange={(value) => {
-                  setOtpCode(value)
-                  if (value.length === 6 && !loading) {
-                    handleVerifyOtp(value)
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 6)
+                  setOtpCode(val)
+                  if (val.length === 6 && !loading) {
+                    handleVerifyOtp(val)
                   }
                 }}
-              >
-                <InputOTPGroup>
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                </InputOTPGroup>
-                <InputOTPSeparator />
-                <InputOTPGroup>
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
-                </InputOTPGroup>
-              </InputOTP>
+              />
             </div>
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             <Button

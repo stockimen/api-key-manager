@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
       const valid = await verifyTOTP(user.otpSecret, code)
       if (!valid) {
-        return NextResponse.json({ error: "验证码错误" }, { status: 401 })
+        return NextResponse.json({ error: "验证码错误" }, { status: 400 })
       }
 
       await userKV.update(session.username, { otpEnabled: true })
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         }
         const valid = await verifyTOTP(user.otpSecret, code)
         if (!valid) {
-          return NextResponse.json({ error: "验证码错误" }, { status: 401 })
+          return NextResponse.json({ error: "验证码错误" }, { status: 400 })
         }
       }
 
