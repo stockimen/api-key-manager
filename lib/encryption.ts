@@ -12,9 +12,13 @@ const LEGACY_ENCRYPTION_SALT_LENGTH = 16
 
 const directEncryptionKeyCache = new Map<string, Promise<CryptoKey>>()
 
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer
+}
+
 // 将字符串转为 ArrayBuffer
 function toArrayBuffer(text: string): ArrayBuffer {
-  return new TextEncoder().encode(text)
+  return bytesToArrayBuffer(new TextEncoder().encode(text))
 }
 
 // 将 ArrayBuffer 转为 Base64
@@ -42,7 +46,7 @@ async function deriveLegacyEncryptionKey(encryptionKey: string, salt: Uint8Array
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: bytesToArrayBuffer(salt),
       iterations: LEGACY_PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },

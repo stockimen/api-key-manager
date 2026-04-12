@@ -35,7 +35,18 @@ const DEFAULT_API_URLS: Record<string, string> = {
   Custom: "",
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_STORAGE_KEY = "api-key-list-page-size"
+const PAGE_SIZE_OPTIONS = ["20", "50", "100", "all"] as const
+type PageSizeOption = typeof PAGE_SIZE_OPTIONS[number]
+const DEFAULT_PAGE_SIZE: PageSizeOption = "20"
+
+function parsePageSizeOption(value: string | null): PageSizeOption {
+  if (value === "20" || value === "50" || value === "100" || value === "all") {
+    return value
+  }
+
+  return DEFAULT_PAGE_SIZE
+}
 
 type CopyState = { [key: string]: boolean }
 
@@ -52,6 +63,8 @@ export default function ApiKeyList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [providerFilter, setProviderFilter] = useState("all")
   const [tagFilter, setTagFilter] = useState("all")
+  const [pageSize, setPageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE)
+  const [pageSizeLoaded, setPageSizeLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [newKey, setNewKey] = useState({
     name: "",
@@ -94,6 +107,23 @@ export default function ApiKeyList() {
     loadDefaultType()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    setPageSize(parsePageSizeOption(localStorage.getItem(PAGE_SIZE_STORAGE_KEY)))
+    setPageSizeLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (!pageSizeLoaded || typeof window === "undefined") {
+      return
+    }
+
+    localStorage.setItem(PAGE_SIZE_STORAGE_KEY, pageSize)
+  }, [pageSize, pageSizeLoaded])
+
   const providerOptions = useMemo(() => {
     return Array.from(new Set(apiKeys.map((key) => key.provider.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   }, [apiKeys])
@@ -118,11 +148,11 @@ export default function ApiKeyList() {
     })
   }, [apiKeys, providerFilter, tagFilter, searchQuery])
 
-  const totalPages = Math.max(1, Math.ceil(filteredKeys.length / PAGE_SIZE))
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filteredKeys.length / Number(pageSize)))
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [providerFilter, tagFilter, searchQuery])
+  }, [providerFilter, tagFilter, searchQuery, pageSize])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -131,9 +161,16 @@ export default function ApiKeyList() {
   }, [currentPage, totalPages])
 
   const paginatedKeys = useMemo(() => {
-    const startIndex = (currentPage - 1) * PAGE_SIZE
-    return filteredKeys.slice(startIndex, startIndex + PAGE_SIZE)
-  }, [currentPage, filteredKeys])
+    if (pageSize === "all") {
+      return filteredKeys
+    }
+
+    const pageSizeValue = Number(pageSize)
+    const startIndex = (currentPage - 1) * pageSizeValue
+    return filteredKeys.slice(startIndex, startIndex + pageSizeValue)
+  }, [currentPage, filteredKeys, pageSize])
+
+  const showPagination = filteredKeys.length > 0 && totalPages > 1
 
   const validateForm = (name: string, key: string) => {
     const errors: { name?: string; key?: string } = {}
@@ -556,7 +593,7 @@ export default function ApiKeyList() {
           </DialogContent>
         </Dialog>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px_auto] md:items-end">
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px_160px_auto] md:items-end">
           <div className="grid gap-2">
             <Label htmlFor="key-search">{t("apiKeys.searchLabel")}</Label>
             <Input
@@ -598,6 +635,21 @@ export default function ApiKeyList() {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="page-size">{t("apiKeys.pageSize")}</Label>
+            <Select value={pageSize} onValueChange={(value) => setPageSize(parsePageSizeOption(value))}>
+              <SelectTrigger id="page-size">
+                <SelectValue placeholder={t("apiKeys.pageSize")} />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option === "all" ? t("apiKeys.pageSizeAll") : option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2 md:justify-end">
             <Button variant="outline" onClick={clearFilters} disabled={!searchQuery && providerFilter === "all" && tagFilter === "all"}>
               {t("apiKeys.clearFilters")}
@@ -606,8 +658,8 @@ export default function ApiKeyList() {
         </div>
 
         <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
-          <span>{t("apiKeys.resultCount", { count: filteredKeys.length, pageSize: PAGE_SIZE })}</span>
-          {filteredKeys.length > 0 && <span>{t("apiKeys.pageIndicator", { current: currentPage, total: totalPages })}</span>}
+          <span>{t("apiKeys.resultCount", { count: filteredKeys.length })}</span>
+          {showPagination && <span>{t("apiKeys.pageIndicator", { current: currentPage, total: totalPages })}</span>}
         </div>
 
         <div className="overflow-x-auto">
@@ -728,7 +780,7 @@ export default function ApiKeyList() {
           </div>
         )}
 
-        {filteredKeys.length > 0 && (
+        {showPagination && (
           <div className="mt-4 flex items-center justify-between gap-3">
             <Button variant="outline" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
               {t("apiKeys.previousPage")}

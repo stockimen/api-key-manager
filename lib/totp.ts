@@ -5,6 +5,10 @@
 
 const BASE32_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.slice().buffer
+}
+
 /** 生成随机 TOTP 密钥（RFC 4648 Base32 编码，20 字节） */
 export function generateSecret(): string {
   const bytes = new Uint8Array(20)
@@ -59,8 +63,8 @@ async function generateTOTPCode(secret: string, timeStep: number): Promise<strin
     timeValue >>= BigInt(8)
   }
 
-  const cryptoKey = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-1" }, false, ["sign"])
-  const hmac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, timeBytes))
+  const cryptoKey = await crypto.subtle.importKey("raw", bytesToArrayBuffer(key), { name: "HMAC", hash: "SHA-1" }, false, ["sign"])
+  const hmac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, bytesToArrayBuffer(timeBytes)))
 
   const offset = hmac[hmac.length - 1] & 0x0f
   const binary = ((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff)

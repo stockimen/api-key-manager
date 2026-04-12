@@ -5,8 +5,16 @@
 
 // ─── Base64URL 工具 ────────────────────────────────────
 
-export function bufferToBase64url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
+function toArrayBuffer(buffer: ArrayBuffer | ArrayBufferView): ArrayBuffer {
+  if (buffer instanceof ArrayBuffer) {
+    return buffer
+  }
+
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength).slice().buffer
+}
+
+export function bufferToBase64url(buffer: ArrayBuffer | ArrayBufferView): string {
+  const bytes = new Uint8Array(toArrayBuffer(buffer))
   let binary = ""
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
@@ -158,8 +166,8 @@ function coseKeyToJWK(coseKey: Map<unknown, unknown>): { jwk: JsonWebKey; algori
       jwk: {
         kty: "EC",
         crv: "P-256",
-        x: bufferToBase64url(x.buffer),
-        y: bufferToBase64url(y.buffer),
+        x: bufferToBase64url(x),
+        y: bufferToBase64url(y),
       },
       algorithm: -7,
     }
@@ -172,8 +180,8 @@ function coseKeyToJWK(coseKey: Map<unknown, unknown>): { jwk: JsonWebKey; algori
     return {
       jwk: {
         kty: "RSA",
-        n: bufferToBase64url(n.buffer),
-        e: bufferToBase64url(e.buffer),
+        n: bufferToBase64url(n),
+        e: bufferToBase64url(e),
       },
       algorithm: -257,
     }
@@ -297,7 +305,7 @@ export async function verifyRegistration(
   const { jwk, algorithm } = coseKeyToJWK(cosePublicKey)
 
   return {
-    credentialId: bufferToBase64url(credentialId.buffer),
+    credentialId: bufferToBase64url(credentialId),
     publicKeyJwk: jwk,
     publicKeyAlgorithm: algorithm,
     signCount: authData.signCount,
@@ -382,10 +390,12 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return result === 0
 }
 
-function concatBuffers(a: ArrayBuffer, b: ArrayBuffer): ArrayBuffer {
-  const combined = new Uint8Array(a.byteLength + b.byteLength)
-  combined.set(new Uint8Array(a), 0)
-  combined.set(new Uint8Array(b), a.byteLength)
+function concatBuffers(a: ArrayBuffer | ArrayBufferView, b: ArrayBuffer | ArrayBufferView): ArrayBuffer {
+  const first = new Uint8Array(toArrayBuffer(a))
+  const second = new Uint8Array(toArrayBuffer(b))
+  const combined = new Uint8Array(first.byteLength + second.byteLength)
+  combined.set(first, 0)
+  combined.set(second, first.byteLength)
   return combined.buffer
 }
 

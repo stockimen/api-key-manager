@@ -31,6 +31,7 @@ tailwind-debug.css
 .env*.local
 .env
 /.dev-data/
+/.omc/
 
 # vercel
 .vercel

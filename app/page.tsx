@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import LanguageSwitcher from "@/components/language-switcher"
 import { LanguageProvider } from "@/lib/i18n/language-context"
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { Key, Shield, BarChart, Settings } from "lucide-react"
 
 export default function Home() {
@@ -102,7 +103,13 @@ function HomeContent() {
   )
 }
 
-function FeatureCard({ icon, title, description }) {
+interface FeatureCardProps {
+  icon: ReactNode
+  title: string
+  description: string
+}
+
+function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
     <Card>
       <CardContent className="p-6 flex flex-col items-center text-center">

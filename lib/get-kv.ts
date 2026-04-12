@@ -10,13 +10,23 @@ type KVEntry = {
 
 type KVStore = Record<string, KVEntry>
 
+export type AppKVListResult = {
+  keys: Array<{ name: string }>
+  list_complete?: boolean
+  cursor?: string
+}
+
+export type AppKVNamespace = KVNamespace & {
+  list: (options?: { prefix?: string; cursor?: string; limit?: number }) => Promise<AppKVListResult>
+}
+
 const fallbackMemoryStore = new Map<string, KVEntry>()
 const cloudflareRequestContextSymbol = Symbol.for("__cloudflare-request-context__")
 const DEFAULT_DEVELOPMENT_ENCRYPTION_KEY = "default-dev-key-change-in-production"
 
 type CloudflareRequestContext = {
   env?: {
-    KV?: KVNamespace
+    KV?: AppKVNamespace
   }
 }
 
@@ -75,7 +85,7 @@ function getNodeFsPromisesModule(): NodeFsPromisesModule | null {
   }
 }
 
-class LocalFileKV implements KVNamespace {
+class LocalFileKV implements AppKVNamespace {
   private storagePath: string | null = null
   private writeQueue: Promise<void> = Promise.resolve()
 
@@ -226,7 +236,7 @@ class LocalFileKV implements KVNamespace {
     })
   }
 
-  async list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }> }> {
+  async list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<AppKVListResult> {
     return this.withLock(async () => {
       const rawStore = await this.readStore()
       const { store, changed } = this.pruneExpired(rawStore)
@@ -264,7 +274,7 @@ function isLocalFallbackEnabled(): boolean {
   }
 }
 
-export function getKV(): KVNamespace {
+export function getKV(): AppKVNamespace {
   // 1. 尝试 Cloudflare Pages request context
   try {
     const ctx = (globalThis as typeof globalThis & {
@@ -281,7 +291,7 @@ export function getKV(): KVNamespace {
   // 2. 尝试 process.env
   try {
     if (typeof process !== "undefined" && (process.env as Record<string, unknown>).KV) {
-      return (process.env as Record<string, unknown>).KV as KVNamespace
+      return (process.env as Record<string, unknown>).KV as AppKVNamespace
     }
   } catch {
     // ignore

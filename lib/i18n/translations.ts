@@ -128,6 +128,8 @@ export type TranslationKey =
   | "apiKeys.nextPage"
   | "apiKeys.resultCount"
   | "apiKeys.pageIndicator"
+  | "apiKeys.pageSize"
+  | "apiKeys.pageSizeAll"
   | "settings.title"
   | "settings.system"
   | "settings.user"
@@ -408,8 +410,10 @@ export const zhCN: Translations = {
   "apiKeys.emptyState": "还没有添加任何 API 密钥。",
   "apiKeys.previousPage": "上一页",
   "apiKeys.nextPage": "下一页",
-  "apiKeys.resultCount": "共 {count} 条结果，每页 {pageSize} 条",
+  "apiKeys.resultCount": "共 {count} 条结果",
   "apiKeys.pageIndicator": "第 {current} / {total} 页",
+  "apiKeys.pageSize": "每页显示",
+  "apiKeys.pageSizeAll": "全部",
   "apiKeys.provider": "提供商",
   "apiKeys.providerPlaceholder": "例如：本地部署模型",
   "apiKeys.customProviderDescription": "自定义提供商适用于本地部署或代理服务",
@@ -662,8 +666,10 @@ export const enUS: Translations = {
   "apiKeys.emptyState": "No API keys have been added yet.",
   "apiKeys.previousPage": "Previous",
   "apiKeys.nextPage": "Next",
-  "apiKeys.resultCount": "{count} results, {pageSize} per page",
+  "apiKeys.resultCount": "{count} results",
   "apiKeys.pageIndicator": "Page {current} / {total}",
+  "apiKeys.pageSize": "Per Page",
+  "apiKeys.pageSizeAll": "All",
   "apiKeys.provider": "Provider",
   "apiKeys.providerPlaceholder": "e.g., Local Deployment",
   "apiKeys.customProviderDescription": "Custom providers are suitable for local deployments or proxy services",
