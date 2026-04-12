@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { normalizeApiKeyTags } from "@/lib/api-key-tags"
-import { apiKeysKV, getSessionFromRequest } from "@/lib/kv"
+import { ensureValidKeyCategoryId } from "@/lib/key-categories"
+import { apiKeysKV, getSessionFromRequest, settingsKV } from "@/lib/kv"
 
 export const runtime = "edge"
 
@@ -20,10 +21,28 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags, categoryId } = body
+    const settings = await settingsKV.get()
     const normalizedTags = tags === undefined ? undefined : normalizeApiKeyTags(tags)
+    // API 层按当前分类配置校验分类是否存在；存储层仍保留字符串兜底，兼容其他调用路径。
+    const normalizedCategoryId = categoryId === undefined
+      ? undefined
+      : ensureValidKeyCategoryId(categoryId, settings.keyCategories, settings.defaultKeyCategoryId)
     const updateData = Object.fromEntries(
-      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags: normalizedTags })
+      Object.entries({
+        name,
+        key,
+        type,
+        provider,
+        rechargeUrl,
+        appId,
+        secretKey,
+        baseUrl,
+        monitorOnDashboard,
+        priority,
+        categoryId: normalizedCategoryId,
+        tags: normalizedTags,
+      })
         .filter(([_, v]) => v !== undefined)
     )
     const updated = await apiKeysKV.updateKey(session.userId, keyId, updateData)

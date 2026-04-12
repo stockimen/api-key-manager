@@ -40,6 +40,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const settings = await settingsKV.update({
       defaultKeyType: body.defaultKeyType,
+      defaultKeyCategoryId: body.defaultKeyCategoryId,
+      defaultListCategoryId: body.defaultListCategoryId,
+      keyCategories: body.keyCategories,
     })
     return NextResponse.json({ settings })
   } catch (error) {

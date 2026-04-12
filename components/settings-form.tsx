@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -11,17 +12,43 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus } from "lucide-react"
+import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react"
 import { InputOTP } from "@/components/ui/input-otp"
 import QRCode from "qrcode"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
 import { isWebAuthnSupported, prepareCreationOptions, encodeRegistrationResponse } from "@/lib/webauthn-client"
+import { DEFAULT_KEY_CATEGORY_ID, type KeyCategory, sortKeyCategories } from "@/lib/key-categories"
+
+type SystemSettingsResponse = {
+  settings: {
+    defaultKeyType: "apikey" | "complex"
+    defaultKeyCategoryId: string
+    defaultListCategoryId: string
+    keyCategories: KeyCategory[]
+  }
+}
+
+function hasCategoryId(categories: KeyCategory[], categoryId: string): boolean {
+  return categories.some((category) => category.id === categoryId)
+}
+
+function getFallbackCategoryId(categories: KeyCategory[]): string {
+  if (hasCategoryId(categories, DEFAULT_KEY_CATEGORY_ID)) {
+    return DEFAULT_KEY_CATEGORY_ID
+  }
+
+  return categories[0]?.id ?? DEFAULT_KEY_CATEGORY_ID
+}
 
 export default function SettingsForm() {
   const { toast } = useToast()
   const { t, language, setLanguage } = useLanguage()
 
   const [defaultKeyType, setDefaultKeyType] = useState("apikey")
+  const [keyCategories, setKeyCategories] = useState<KeyCategory[]>([])
+  const [defaultKeyCategoryId, setDefaultKeyCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
+  const [defaultListCategoryId, setDefaultListCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
+  const [newCategoryName, setNewCategoryName] = useState("")
   const [canManageSystemSettings, setCanManageSystemSettings] = useState(true)
   const [systemSaving, setSystemSaving] = useState(false)
   const [systemSuccess, setSystemSuccess] = useState(false)
@@ -181,8 +208,11 @@ export default function SettingsForm() {
       }
 
       try {
-        const settingsData = await api.get<{ settings: { defaultKeyType: string } }>("/settings")
+        const settingsData = await api.get<SystemSettingsResponse>("/settings")
         setDefaultKeyType(settingsData.settings.defaultKeyType)
+        setKeyCategories(sortKeyCategories(settingsData.settings.keyCategories))
+        setDefaultKeyCategoryId(settingsData.settings.defaultKeyCategoryId)
+        setDefaultListCategoryId(settingsData.settings.defaultListCategoryId)
         setCanManageSystemSettings(true)
       } catch (error) {
         if (isApiError(error) && error.status === 403) {
@@ -232,10 +262,59 @@ export default function SettingsForm() {
   const saveSystemSettings = async () => {
     setSystemSaving(true)
     try {
-      await api.put("/settings", {
+      const normalizedCategories = keyCategories.map((category, index) => ({
+        ...category,
+        name: category.name.trim(),
+        sortOrder: index,
+      }))
+
+      if (normalizedCategories.some((category) => !category.name)) {
+        toast({
+          title: t("common.error"),
+          description: t("settings.categoryNameRequired"),
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!normalizedCategories.length) {
+        toast({
+          title: t("common.error"),
+          description: t("settings.categoryAtLeastOne"),
+          variant: "destructive",
+        })
+        return
+      }
+
+      const uniqueNames = new Set(normalizedCategories.map((category) => category.name.toLowerCase()))
+      if (uniqueNames.size !== normalizedCategories.length) {
+        toast({
+          title: t("common.error"),
+          description: t("settings.categoryNameDuplicate"),
+          variant: "destructive",
+        })
+        return
+      }
+
+      const fallbackCategoryId = getFallbackCategoryId(normalizedCategories)
+      const nextDefaultKeyCategoryId = hasCategoryId(normalizedCategories, defaultKeyCategoryId)
+        ? defaultKeyCategoryId
+        : fallbackCategoryId
+      const nextDefaultListCategoryId = hasCategoryId(normalizedCategories, defaultListCategoryId)
+        ? defaultListCategoryId
+        : fallbackCategoryId
+
+      const data = await api.put<SystemSettingsResponse>("/settings", {
         defaultKeyType: defaultKeyType as "apikey" | "complex",
+        keyCategories: normalizedCategories,
+        defaultKeyCategoryId: nextDefaultKeyCategoryId,
+        defaultListCategoryId: nextDefaultListCategoryId,
       })
 
+      setDefaultKeyType(data.settings.defaultKeyType)
+      setKeyCategories(sortKeyCategories(data.settings.keyCategories))
+      setDefaultKeyCategoryId(data.settings.defaultKeyCategoryId)
+      setDefaultListCategoryId(data.settings.defaultListCategoryId)
       setSystemSuccess(true)
       toast({
         title: t("settings.settingsSaved"),
@@ -353,6 +432,77 @@ export default function SettingsForm() {
     return re.test(email)
   }
 
+  const createCategoryId = () => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID()
+    }
+
+    return `category-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  }
+
+  const updateCategoryName = (categoryId: string, name: string) => {
+    setKeyCategories((prev) =>
+      prev.map((category) => (category.id === categoryId ? { ...category, name } : category)),
+    )
+  }
+
+  const moveCategory = (categoryId: string, direction: -1 | 1) => {
+    setKeyCategories((prev) => {
+      const currentIndex = prev.findIndex((category) => category.id === categoryId)
+      const targetIndex = currentIndex + direction
+
+      if (currentIndex === -1 || targetIndex < 0 || targetIndex >= prev.length) {
+        return prev
+      }
+
+      const next = [...prev]
+      ;[next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]]
+      return next.map((category, index) => ({ ...category, sortOrder: index }))
+    })
+  }
+
+  const addCategory = () => {
+    const name = newCategoryName.trim()
+    if (!name) {
+      toast({ title: t("common.error"), description: t("settings.categoryNameRequired"), variant: "destructive" })
+      return
+    }
+
+    if (keyCategories.some((category) => category.name.trim().toLowerCase() === name.toLowerCase())) {
+      toast({ title: t("common.error"), description: t("settings.categoryNameDuplicate"), variant: "destructive" })
+      return
+    }
+
+    setKeyCategories((prev) => [
+      ...prev,
+      {
+        id: createCategoryId(),
+        name,
+        sortOrder: prev.length,
+      },
+    ])
+    setNewCategoryName("")
+  }
+
+  const removeCategory = (categoryId: string) => {
+    if (categoryId === DEFAULT_KEY_CATEGORY_ID) {
+      return
+    }
+
+    const nextCategories = keyCategories
+      .filter((category) => category.id !== categoryId)
+      .map((category, index) => ({ ...category, sortOrder: index }))
+    const fallbackCategoryId = getFallbackCategoryId(nextCategories)
+
+    setKeyCategories(nextCategories)
+    setDefaultKeyCategoryId((current) => (
+      current === categoryId || !hasCategoryId(nextCategories, current) ? fallbackCategoryId : current
+    ))
+    setDefaultListCategoryId((current) => (
+      current === categoryId || !hasCategoryId(nextCategories, current) ? fallbackCategoryId : current
+    ))
+  }
+
   const handleGenerateTotp = async () => {
     setTotpLoading(true)
     setTotpError("")
@@ -438,21 +588,146 @@ export default function SettingsForm() {
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="defaultKeyType">{t("settings.defaultKeyType")}</Label>
-              <Select value={defaultKeyType} onValueChange={setDefaultKeyType} disabled={!canManageSystemSettings}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("settings.defaultKeyType")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="apikey">{t("apiKeys.apiKey")}</SelectItem>
-                  <SelectItem value="complex">{t("apiKeys.complexKey")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">{t("settings.defaultKeyTypeDescription")}</p>
+            <div className="grid gap-4 xl:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="defaultKeyType">{t("settings.defaultKeyType")}</Label>
+                <Select value={defaultKeyType} onValueChange={setDefaultKeyType} disabled={!canManageSystemSettings}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("settings.defaultKeyType")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="apikey">{t("apiKeys.apiKey")}</SelectItem>
+                    <SelectItem value="complex">{t("apiKeys.complexKey")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">{t("settings.defaultKeyTypeDescription")}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultKeyCategory">{t("settings.defaultKeyCategory")}</Label>
+                <Select value={defaultKeyCategoryId} onValueChange={setDefaultKeyCategoryId} disabled={!canManageSystemSettings}>
+                  <SelectTrigger id="defaultKeyCategory">
+                    <SelectValue placeholder={t("settings.defaultKeyCategory")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {keyCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">{t("settings.defaultKeyCategoryDescription")}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="defaultListCategory">{t("settings.defaultListCategory")}</Label>
+                <Select value={defaultListCategoryId} onValueChange={setDefaultListCategoryId} disabled={!canManageSystemSettings}>
+                  <SelectTrigger id="defaultListCategory">
+                    <SelectValue placeholder={t("settings.defaultListCategory")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {keyCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">{t("settings.defaultListCategoryDescription")}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <Label>{t("settings.keyCategories")}</Label>
+                  <p className="text-sm text-muted-foreground">{t("settings.keyCategoriesDescription")}</p>
+                </div>
+                <Badge variant="outline" className="w-fit">
+                  {keyCategories.length}
+                </Badge>
+              </div>
+
+              <div className="space-y-3">
+                {keyCategories.map((category, index) => (
+                  <div key={category.id} className="rounded-lg border bg-background p-3 shadow-sm">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {category.id === DEFAULT_KEY_CATEGORY_ID && (
+                          <Badge variant="secondary">{t("settings.categoryBuiltin")}</Badge>
+                        )}
+                        {defaultKeyCategoryId === category.id && (
+                          <Badge variant="outline">{t("settings.categoryDefaultNew")}</Badge>
+                        )}
+                        {defaultListCategoryId === category.id && (
+                          <Badge variant="outline">{t("settings.categoryDefaultList")}</Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <Input
+                          value={category.name}
+                          onChange={(e) => updateCategoryName(category.id, e.target.value)}
+                          disabled={!canManageSystemSettings}
+                          className="min-w-0 flex-1"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label={t("common.moveUp")}
+                            title={t("common.moveUp")}
+                            disabled={!canManageSystemSettings || index === 0}
+                            onClick={() => moveCategory(category.id, -1)}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label={t("common.moveDown")}
+                            title={t("common.moveDown")}
+                            disabled={!canManageSystemSettings || index === keyCategories.length - 1}
+                            onClick={() => moveCategory(category.id, 1)}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label={t("common.delete")}
+                            title={t("common.delete")}
+                            disabled={!canManageSystemSettings || category.id === DEFAULT_KEY_CATEGORY_ID}
+                            onClick={() => removeCategory(category.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder={t("settings.newCategoryPlaceholder")}
+                  disabled={!canManageSystemSettings}
+                  className="min-w-0 flex-1"
+                />
+                <Button type="button" variant="outline" disabled={!canManageSystemSettings} onClick={addCategory} className="sm:self-start">
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("settings.addCategory")}
+                </Button>
+              </div>
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="justify-end">
             <Button onClick={saveSystemSettings} disabled={systemSaving || !canManageSystemSettings}>
               {systemSaving ? "保存中..." : t("settings.saveSystemSettings")}
             </Button>

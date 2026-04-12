@@ -5,6 +5,13 @@
 import { decrypt, encrypt, hashPassword } from "./encryption"
 import { getEncryptionKey, getKV, isDevelopmentEnvironment } from "./get-kv"
 import { normalizeApiKeyTags } from "./api-key-tags"
+import {
+  DEFAULT_KEY_CATEGORY_ID,
+  type KeyCategory,
+  ensureValidKeyCategoryId,
+  normalizeKeyCategories,
+  normalizeStoredKeyCategoryId,
+} from "./key-categories"
 
 export type UserRole = "admin" | "user"
 
@@ -35,21 +42,26 @@ export interface ApiKey {
   baseUrl: string
   monitorOnDashboard: boolean
   priority: number
+  categoryId: string
   tags: string[]
   createdAt: string
   lastUsed: string
 }
 
 // 存储层类型（旧数据可能缺少 monitorOnDashboard 和 priority）
-type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority" | "tags"> & {
+type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority" | "categoryId" | "tags"> & {
   monitorOnDashboard?: boolean
   priority?: number
+  categoryId?: unknown
   tags?: unknown
 }
 
 // 系统设置类型
 export interface SystemSettings {
   defaultKeyType: "apikey" | "complex"
+  defaultKeyCategoryId: string
+  defaultListCategoryId: string
+  keyCategories: KeyCategory[]
   initialized: boolean
 }
 
@@ -83,6 +95,9 @@ export interface ConnectionTestResult {
 
 const DEFAULT_SETTINGS: SystemSettings = {
   defaultKeyType: "apikey",
+  defaultKeyCategoryId: DEFAULT_KEY_CATEGORY_ID,
+  defaultListCategoryId: DEFAULT_KEY_CATEGORY_ID,
+  keyCategories: normalizeKeyCategories(null),
   initialized: false,
 }
 
@@ -188,6 +203,7 @@ function normalizeApiKey(apiKey: StoredApiKey): ApiKey {
     ...apiKey,
     monitorOnDashboard: apiKey.monitorOnDashboard !== false,
     priority: apiKey.priority ?? 0,
+    categoryId: normalizeStoredKeyCategoryId(apiKey.categoryId),
     tags: normalizeApiKeyTags(apiKey.tags),
   }
 }
@@ -240,6 +256,7 @@ export const apiKeysKV = {
       ...keyData,
       monitorOnDashboard: keyData.monitorOnDashboard === true,
       priority: keyData.priority ?? 0,
+      categoryId: normalizeStoredKeyCategoryId(keyData.categoryId),
       tags: normalizeApiKeyTags(keyData.tags),
       id: keys.length > 0 ? Math.max(...keys.map((k) => k.id)) + 1 : 1,
       createdAt: new Date().toISOString().split("T")[0],
@@ -266,6 +283,13 @@ export const apiKeysKV = {
     if (index === -1) return null
 
     const updateData = { ...data }
+    if ("categoryId" in updateData) {
+      if (updateData.categoryId === undefined) {
+        delete updateData.categoryId
+      } else {
+        updateData.categoryId = normalizeStoredKeyCategoryId(updateData.categoryId)
+      }
+    }
     if ("tags" in updateData) {
       if (updateData.tags === undefined) {
         delete updateData.tags
@@ -308,8 +332,13 @@ export const apiKeysKV = {
 // ========== 设置操作 ==========
 
 function normalizeSettings(settings: Partial<SystemSettings> | null): SystemSettings {
+  const keyCategories = normalizeKeyCategories(settings?.keyCategories)
+
   return {
     defaultKeyType: settings?.defaultKeyType === "complex" ? "complex" : "apikey",
+    defaultKeyCategoryId: ensureValidKeyCategoryId(settings?.defaultKeyCategoryId, keyCategories),
+    defaultListCategoryId: ensureValidKeyCategoryId(settings?.defaultListCategoryId, keyCategories),
+    keyCategories,
     initialized: settings?.initialized === true,
   }
 }
@@ -324,11 +353,14 @@ export const settingsKV = {
   async update(data: Partial<SystemSettings>): Promise<SystemSettings> {
     const kv = getKV()
     const current = await this.get()
-    const updated: SystemSettings = {
+    const updated = normalizeSettings({
       ...current,
       ...(data.defaultKeyType ? { defaultKeyType: data.defaultKeyType } : {}),
+      ...(Array.isArray(data.keyCategories) ? { keyCategories: data.keyCategories } : {}),
+      ...(typeof data.defaultKeyCategoryId === "string" ? { defaultKeyCategoryId: data.defaultKeyCategoryId } : {}),
+      ...(typeof data.defaultListCategoryId === "string" ? { defaultListCategoryId: data.defaultListCategoryId } : {}),
       ...(typeof data.initialized === "boolean" ? { initialized: data.initialized } : {}),
-    }
+    })
     await kv.put("settings:global", JSON.stringify(updated))
     return updated
   },

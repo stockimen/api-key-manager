@@ -22,6 +22,8 @@ export type TranslationKey =
   | "common.all"
   | "common.none"
   | "common.default"
+  | "common.moveUp"
+  | "common.moveDown"
   | "common.error"
   | "common.success"
   | "common.warning"
@@ -130,6 +132,7 @@ export type TranslationKey =
   | "apiKeys.pageIndicator"
   | "apiKeys.pageSize"
   | "apiKeys.pageSizeAll"
+  | "apiKeys.category"
   | "settings.title"
   | "settings.system"
   | "settings.user"
@@ -140,6 +143,20 @@ export type TranslationKey =
   | "settings.allowRegistrationDescription"
   | "settings.defaultKeyType"
   | "settings.defaultKeyTypeDescription"
+  | "settings.defaultKeyCategory"
+  | "settings.defaultKeyCategoryDescription"
+  | "settings.defaultListCategory"
+  | "settings.defaultListCategoryDescription"
+  | "settings.keyCategories"
+  | "settings.keyCategoriesDescription"
+  | "settings.categoryBuiltin"
+  | "settings.categoryDefaultNew"
+  | "settings.categoryDefaultList"
+  | "settings.categoryNameRequired"
+  | "settings.categoryAtLeastOne"
+  | "settings.categoryNameDuplicate"
+  | "settings.newCategoryPlaceholder"
+  | "settings.addCategory"
   | "settings.encryptionLevel"
   | "settings.encryptionLevelDescription"
   | "settings.medium"
@@ -307,6 +324,8 @@ export const zhCN: Translations = {
   "common.all": "全部",
   "common.none": "无",
   "common.default": "默认",
+  "common.moveUp": "上移",
+  "common.moveDown": "下移",
   "common.error": "错误",
   "common.success": "成功",
   "common.warning": "警告",
@@ -414,6 +433,7 @@ export const zhCN: Translations = {
   "apiKeys.pageIndicator": "第 {current} / {total} 页",
   "apiKeys.pageSize": "每页显示",
   "apiKeys.pageSizeAll": "全部",
+  "apiKeys.category": "分类",
   "apiKeys.provider": "提供商",
   "apiKeys.providerPlaceholder": "例如：本地部署模型",
   "apiKeys.customProviderDescription": "自定义提供商适用于本地部署或代理服务",
@@ -437,6 +457,20 @@ export const zhCN: Translations = {
   "settings.systemDescription": "配置系统的全局设置",
   "settings.defaultKeyType": "默认密钥类型",
   "settings.defaultKeyTypeDescription": "添加新密钥时的默认类型",
+  "settings.defaultKeyCategory": "默认新建分类",
+  "settings.defaultKeyCategoryDescription": "添加新密钥时默认归属到这个分类。",
+  "settings.defaultListCategory": "默认列表分类",
+  "settings.defaultListCategoryDescription": "打开 API 密钥列表时默认展示这个分类。",
+  "settings.keyCategories": "密钥分类",
+  "settings.keyCategoriesDescription": "在线维护业务分类顺序、名称和可选项。",
+  "settings.categoryBuiltin": "系统内置",
+  "settings.categoryDefaultNew": "新建默认",
+  "settings.categoryDefaultList": "列表默认",
+  "settings.categoryNameRequired": "分类名称不能为空",
+  "settings.categoryAtLeastOne": "至少需要保留一个分类",
+  "settings.categoryNameDuplicate": "分类名称不能重复",
+  "settings.newCategoryPlaceholder": "输入分类名称",
+  "settings.addCategory": "添加分类",
   "settings.userSettings": "个人设置",
   "settings.userDescription": "更新您的个人信息和偏好设置",
   "settings.securitySettings": "安全设置",
@@ -561,6 +595,8 @@ export const enUS: Translations = {
   "common.all": "All",
   "common.none": "None",
   "common.default": "Default",
+  "common.moveUp": "Move Up",
+  "common.moveDown": "Move Down",
   "common.error": "Error",
   "common.success": "Success",
   "common.warning": "Warning",
@@ -670,6 +706,7 @@ export const enUS: Translations = {
   "apiKeys.pageIndicator": "Page {current} / {total}",
   "apiKeys.pageSize": "Per Page",
   "apiKeys.pageSizeAll": "All",
+  "apiKeys.category": "Category",
   "apiKeys.provider": "Provider",
   "apiKeys.providerPlaceholder": "e.g., Local Deployment",
   "apiKeys.customProviderDescription": "Custom providers are suitable for local deployments or proxy services",
@@ -693,6 +730,20 @@ export const enUS: Translations = {
   "settings.systemDescription": "Configure global system settings",
   "settings.defaultKeyType": "Default Key Type",
   "settings.defaultKeyTypeDescription": "Default type when adding new keys",
+  "settings.defaultKeyCategory": "Default New Key Category",
+  "settings.defaultKeyCategoryDescription": "New API keys will be assigned to this category by default.",
+  "settings.defaultListCategory": "Default List Category",
+  "settings.defaultListCategoryDescription": "The API key list opens with this category selected by default.",
+  "settings.keyCategories": "Key Categories",
+  "settings.keyCategoriesDescription": "Manage category names, order, and available options online.",
+  "settings.categoryBuiltin": "Built-in",
+  "settings.categoryDefaultNew": "New Key Default",
+  "settings.categoryDefaultList": "List Default",
+  "settings.categoryNameRequired": "Category name is required",
+  "settings.categoryAtLeastOne": "At least one category must be kept",
+  "settings.categoryNameDuplicate": "Category names must be unique",
+  "settings.newCategoryPlaceholder": "Enter category name",
+  "settings.addCategory": "Add Category",
   "settings.userSettings": "User Settings",
   "settings.userDescription": "Update your personal information and preferences",
   "settings.securitySettings": "Security Settings",

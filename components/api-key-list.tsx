@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
 import type { ApiKey } from "@/lib/kv"
+import { ALL_KEY_CATEGORY_ID, DEFAULT_KEY_CATEGORY_ID, sortKeyCategories, type KeyCategory } from "@/lib/key-categories"
 
 const DEFAULT_API_URLS: Record<string, string> = {
   OpenAI: "https://api.openai.com/v1",
@@ -50,6 +51,70 @@ function parsePageSizeOption(value: string | null): PageSizeOption {
 
 type CopyState = { [key: string]: boolean }
 
+type KeyFormState = {
+  name: string
+  key: string
+  type: "apikey" | "complex"
+  categoryId: string
+  provider: string
+  rechargeUrl: string
+  appId: string
+  secretKey: string
+  baseUrl: string
+  monitorOnDashboard: boolean
+  priority: number
+  tags: string[]
+}
+
+type KeysResponse = {
+  keys: ApiKey[]
+  categories: KeyCategory[]
+  defaultKeyType: "apikey" | "complex"
+  defaultKeyCategoryId: string
+  defaultListCategoryId: string
+}
+
+function createEmptyKeyForm(defaultKeyType: "apikey" | "complex", defaultCategoryId: string): KeyFormState {
+  return {
+    name: "",
+    key: "",
+    type: defaultKeyType,
+    categoryId: defaultCategoryId,
+    provider: "",
+    rechargeUrl: "",
+    appId: "",
+    secretKey: "",
+    baseUrl: "",
+    monitorOnDashboard: false,
+    priority: 0,
+    tags: [],
+  }
+}
+
+function hasCategoryId(categories: KeyCategory[], categoryId: string): boolean {
+  return categories.some((category) => category.id === categoryId)
+}
+
+function resolveDefaultListCategoryId(categories: KeyCategory[], preferredCategoryId: string): string {
+  if (!categories.length) {
+    return ""
+  }
+
+  return hasCategoryId(categories, preferredCategoryId) ? preferredCategoryId : categories[0].id
+}
+
+function resolveCategoryFilter(categories: KeyCategory[], preferredCategoryId: string, currentFilter: string): string {
+  if (!categories.length) {
+    return ""
+  }
+
+  if (currentFilter === ALL_KEY_CATEGORY_ID || hasCategoryId(categories, currentFilter)) {
+    return currentFilter
+  }
+
+  return resolveDefaultListCategoryId(categories, preferredCategoryId)
+}
+
 export default function ApiKeyList() {
   const { t } = useLanguage()
   const { toast } = useToast()
@@ -61,29 +126,53 @@ export default function ApiKeyList() {
   const [formErrors, setFormErrors] = useState<{ name?: string; key?: string }>({})
   const [copiedStates, setCopiedStates] = useState<CopyState>({})
   const [searchQuery, setSearchQuery] = useState("")
+  const [categories, setCategories] = useState<KeyCategory[]>([])
+  const [defaultKeyType, setDefaultKeyType] = useState<"apikey" | "complex">("apikey")
+  const [defaultKeyCategoryId, setDefaultKeyCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
+  const [defaultListCategoryId, setDefaultListCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
+  const [categoryFilter, setCategoryFilter] = useState("")
   const [providerFilter, setProviderFilter] = useState("all")
   const [tagFilter, setTagFilter] = useState("all")
   const [pageSize, setPageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE)
   const [pageSizeLoaded, setPageSizeLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [newKey, setNewKey] = useState({
-    name: "",
-    key: "",
-    type: "apikey" as "apikey" | "complex",
-    provider: "",
-    rechargeUrl: "",
-    appId: "",
-    secretKey: "",
-    baseUrl: "",
-    monitorOnDashboard: false,
-    priority: 0,
-    tags: [] as string[],
-  })
+  const [newKey, setNewKey] = useState<KeyFormState>(() => createEmptyKeyForm("apikey", DEFAULT_KEY_CATEGORY_ID))
 
   const loadKeys = useCallback(async () => {
     try {
-      const data = await api.get<{ keys: ApiKey[] }>("/keys")
+      const data = await api.get<KeysResponse>("/keys")
+      const nextCategories = sortKeyCategories(data.categories)
+      const nextDefaultListCategoryId = resolveDefaultListCategoryId(nextCategories, data.defaultListCategoryId)
+
       setApiKeys(data.keys)
+      setCategories(nextCategories)
+      setDefaultKeyType(data.defaultKeyType)
+      setDefaultKeyCategoryId(data.defaultKeyCategoryId)
+      setDefaultListCategoryId(data.defaultListCategoryId)
+      setCategoryFilter((prev) => resolveCategoryFilter(nextCategories, nextDefaultListCategoryId, prev))
+      setNewKey((prev) => {
+        const isPristine =
+          !prev.name &&
+          !prev.key &&
+          !prev.provider &&
+          !prev.rechargeUrl &&
+          !prev.appId &&
+          !prev.secretKey &&
+          !prev.baseUrl &&
+          prev.monitorOnDashboard === false &&
+          prev.priority === 0 &&
+          prev.tags.length === 0
+
+        if (isPristine) {
+          return createEmptyKeyForm(data.defaultKeyType, data.defaultKeyCategoryId)
+        }
+
+        if (!hasCategoryId(nextCategories, prev.categoryId)) {
+          return { ...prev, categoryId: data.defaultKeyCategoryId }
+        }
+
+        return prev
+      })
     } catch {
       // api-client 会自动处理 401 跳转
     } finally {
@@ -96,16 +185,11 @@ export default function ApiKeyList() {
   }, [loadKeys])
 
   useEffect(() => {
-    const loadDefaultType = async () => {
-      try {
-        const data = await api.get<{ settings: { defaultKeyType: "apikey" | "complex" } }>("/settings")
-        setNewKey((prev) => ({ ...prev, type: data.settings.defaultKeyType }))
-      } catch {
-        // use default
-      }
+    const nextCategoryFilter = resolveCategoryFilter(categories, defaultListCategoryId, categoryFilter)
+    if (nextCategoryFilter !== categoryFilter) {
+      setCategoryFilter(nextCategoryFilter)
     }
-    loadDefaultType()
-  }, [])
+  }, [categories, categoryFilter, defaultListCategoryId])
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -128,6 +212,23 @@ export default function ApiKeyList() {
     return Array.from(new Set(apiKeys.map((key) => key.provider.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   }, [apiKeys])
 
+  const categoryOptions = useMemo(() => sortKeyCategories(categories), [categories])
+
+  const categoryNameMap = useMemo(
+    () => new Map(categoryOptions.map((category) => [category.id, category.name])),
+    [categoryOptions],
+  )
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+
+    for (const apiKey of apiKeys) {
+      counts.set(apiKey.categoryId, (counts.get(apiKey.categoryId) ?? 0) + 1)
+    }
+
+    return counts
+  }, [apiKeys])
+
   const tagOptions = useMemo(() => {
     return Array.from(new Set(apiKeys.flatMap((key) => key.tags || []))).sort((a, b) => a.localeCompare(b))
   }, [apiKeys])
@@ -136,6 +237,9 @@ export default function ApiKeyList() {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
     return apiKeys.filter((apiKey) => {
+      const matchesCategory = !categoryFilter || categoryFilter === ALL_KEY_CATEGORY_ID || apiKey.categoryId === categoryFilter
+      if (!matchesCategory) return false
+
       const matchesProvider = providerFilter === "all" || apiKey.provider.trim() === providerFilter
       if (!matchesProvider) return false
 
@@ -146,13 +250,13 @@ export default function ApiKeyList() {
 
       return [apiKey.name, apiKey.provider, apiKey.baseUrl].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
-  }, [apiKeys, providerFilter, tagFilter, searchQuery])
+  }, [apiKeys, categoryFilter, providerFilter, tagFilter, searchQuery])
 
   const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filteredKeys.length / Number(pageSize)))
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [providerFilter, tagFilter, searchQuery, pageSize])
+  }, [categoryFilter, providerFilter, tagFilter, searchQuery, pageSize])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -191,24 +295,9 @@ export default function ApiKeyList() {
         priority: newKey.priority,
       })
 
-      setApiKeys((prev) => [...prev, data.key])
       setIsAddDialogOpen(false)
       loadKeys()
-
-      try {
-        const settings = await api.get<{ settings: { defaultKeyType: "apikey" | "complex" } }>("/settings")
-        setNewKey({
-          name: "", key: "", type: settings.settings.defaultKeyType,
-          provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false, priority: 0, tags: [],
-        })
-      } catch {
-        setNewKey({
-          name: "", key: "", type: "apikey",
-          provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false, priority: 0, tags: [],
-        })
-      }
+      setNewKey(createEmptyKeyForm(defaultKeyType, defaultKeyCategoryId))
       setFormErrors({})
       toast({ title: t("toast.addSuccess"), description: t("toast.addSuccess") })
     } catch {
@@ -229,6 +318,7 @@ export default function ApiKeyList() {
       const data = await api.put<{ key: ApiKey }>(`/keys/${editingKey.id}`, {
         name: editingKey.name,
         key: editingKey.key,
+        categoryId: editingKey.categoryId,
         provider: editingKey.provider,
         appId: editingKey.appId,
         secretKey: editingKey.secretKey,
@@ -265,6 +355,7 @@ export default function ApiKeyList() {
       const data = await api.put<{ key: ApiKey }>(`/keys/${apiKey.id}`, {
         name: apiKey.name,
         key: apiKey.key,
+        categoryId: apiKey.categoryId,
         provider: apiKey.provider,
         appId: apiKey.appId,
         secretKey: apiKey.secretKey,
@@ -321,18 +412,36 @@ export default function ApiKeyList() {
                 <DialogDescription>{t("apiKeys.addDescription")}</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="type">{t("common.type")}</Label>
-                  <Select
-                    value={newKey.type}
-                    onValueChange={(value: "apikey" | "complex") => setNewKey({ ...newKey, type: value })}
-                  >
-                    <SelectTrigger><SelectValue placeholder={t("common.type")} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="apikey">{t("apiKeys.apiKey")}</SelectItem>
-                      <SelectItem value="complex">{t("apiKeys.complexKey")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="type">{t("common.type")}</Label>
+                    <Select
+                      value={newKey.type}
+                      onValueChange={(value: "apikey" | "complex") => setNewKey({ ...newKey, type: value })}
+                    >
+                      <SelectTrigger><SelectValue placeholder={t("common.type")} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="apikey">{t("apiKeys.apiKey")}</SelectItem>
+                        <SelectItem value="complex">{t("apiKeys.complexKey")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="category-add">{t("apiKeys.category")}</Label>
+                    <Select
+                      value={newKey.categoryId}
+                      onValueChange={(value) => setNewKey({ ...newKey, categoryId: value })}
+                    >
+                      <SelectTrigger id="category-add"><SelectValue placeholder={t("apiKeys.category")} /></SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-4 py-4 sm:grid-cols-2">
                   <div className="space-y-4">
@@ -481,6 +590,22 @@ export default function ApiKeyList() {
                     {editingKey.type === "apikey" ? t("apiKeys.apiKey") : t("apiKeys.complexKey")}
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label>{t("apiKeys.category")}</Label>
+                  <Select
+                    value={editingKey.categoryId}
+                    onValueChange={(value) => setEditingKey({ ...editingKey, categoryId: value })}
+                  >
+                    <SelectTrigger><SelectValue placeholder={t("apiKeys.category")} /></SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-4">
                     <div className="grid gap-2">
@@ -593,6 +718,63 @@ export default function ApiKeyList() {
           </DialogContent>
         </Dialog>
 
+        {categoryOptions.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">{t("apiKeys.category")}</p>
+                <p className="text-xs text-muted-foreground">{t("apiKeys.resultCount", { count: filteredKeys.length })}</p>
+              </div>
+              <Badge variant="outline" className="shrink-0">
+                {categoryFilter === ALL_KEY_CATEGORY_ID
+                  ? t("common.all")
+                  : categoryNameMap.get(categoryFilter) ?? t("apiKeys.category")}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-2">
+              <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {categoryOptions.map((category) => (
+                <Button
+                  key={category.id}
+                  variant={categoryFilter === category.id ? "default" : "outline"}
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setCategoryFilter(category.id)}
+                >
+                  <span className="max-w-[10rem] truncate">{category.name}</span>
+                  <span
+                    className={
+                      categoryFilter === category.id
+                        ? "rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[11px] text-primary-foreground"
+                        : "rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                    }
+                  >
+                    {categoryCounts.get(category.id) ?? 0}
+                  </span>
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant={categoryFilter === ALL_KEY_CATEGORY_ID ? "default" : "outline"}
+              size="sm"
+              className="shrink-0"
+              onClick={() => setCategoryFilter(ALL_KEY_CATEGORY_ID)}
+            >
+              <span>{t("common.all")}</span>
+              <span
+                className={
+                  categoryFilter === ALL_KEY_CATEGORY_ID
+                    ? "rounded-full bg-primary-foreground/15 px-1.5 py-0.5 text-[11px] text-primary-foreground"
+                    : "rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                }
+              >
+                {apiKeys.length}
+              </span>
+            </Button>
+          </div>
+        </div>
+        )}
+
         <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px_160px_auto] md:items-end">
           <div className="grid gap-2">
             <Label htmlFor="key-search">{t("apiKeys.searchLabel")}</Label>
@@ -687,6 +869,9 @@ export default function ApiKeyList() {
                     >
                       {apiKey.name}
                     </span>
+                    {categoryNameMap.get(apiKey.categoryId) && (
+                      <Badge variant="secondary" className="ml-2">{categoryNameMap.get(apiKey.categoryId)}</Badge>
+                    )}
                     {apiKey.type === "complex" && (
                       <Badge variant="outline" className="ml-2">{t("apiKeys.complexKey")}</Badge>
                     )}
