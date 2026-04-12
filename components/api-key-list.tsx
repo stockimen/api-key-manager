@@ -860,94 +860,113 @@ export default function ApiKeyList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedKeys.map((apiKey) => (
-                <TableRow key={apiKey.id}>
-                  <TableCell className="font-medium">
-                    <span
-                      className={apiKey.rechargeUrl ? "cursor-pointer hover:underline" : ""}
-                      onClick={() => apiKey.rechargeUrl && window.open(apiKey.rechargeUrl, "_blank")}
-                    >
-                      {apiKey.name}
-                    </span>
-                    {categoryNameMap.get(apiKey.categoryId) && (
-                      <Badge variant="secondary" className="ml-2">{categoryNameMap.get(apiKey.categoryId)}</Badge>
-                    )}
-                    {apiKey.type === "complex" && (
-                      <Badge variant="outline" className="ml-2">{t("apiKeys.complexKey")}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{apiKey.provider}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(apiKey.tags || []).map((tag) => (
-                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
+              {paginatedKeys.map((apiKey) => {
+                const categoryName = categoryNameMap.get(apiKey.categoryId)
+
+                return (
+                  <TableRow key={apiKey.id}>
+                    <TableCell className="font-medium align-top">
+                      <div className="w-fit max-w-[14rem] space-y-1 md:max-w-[16rem] xl:max-w-[18rem]">
+                        <span
+                          className={`block truncate ${apiKey.rechargeUrl ? "cursor-pointer hover:underline" : ""}`}
+                          onClick={() => apiKey.rechargeUrl && window.open(apiKey.rechargeUrl, "_blank")}
+                          title={apiKey.name}
+                        >
+                          {apiKey.name}
+                        </span>
+                        {(categoryName || apiKey.type === "complex") && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {categoryName && (
+                              <Badge variant="secondary" className="text-xs">
+                                {categoryName}
+                              </Badge>
+                            )}
+                            {apiKey.type === "complex" && (
+                              <Badge variant="outline" className="text-xs">
+                                {t("apiKeys.complexKey")}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="max-w-[10rem] truncate whitespace-nowrap" title={apiKey.provider}>
+                        {apiKey.provider}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(apiKey.tags || []).map((tag) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <code
+                          className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                          onClick={() => copyToClipboard(apiKey.key, `key-${apiKey.id}`)}
+                          title={t("common.copy")}
+                        >
+                          {copiedStates[`key-${apiKey.id}`] ? "✓" : maskKey(apiKey.key)}
+                        </code>
+                        {apiKey.type === "complex" && apiKey.appId && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">{t("apiKeys.appId")}:</span>
+                            <code
+                              className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                              onClick={() => copyToClipboard(apiKey.appId!, `appId-${apiKey.id}`)}
+                              title={t("common.copy")}
+                            >
+                              {copiedStates[`appId-${apiKey.id}`] ? "✓" : maskKey(apiKey.appId)}
+                            </code>
+                          </div>
+                        )}
+                        {apiKey.type === "complex" && apiKey.secretKey && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</span>
+                            <code
+                              className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                              onClick={() => copyToClipboard(apiKey.secretKey!, `secretKey-${apiKey.id}`)}
+                              title={t("common.copy")}
+                            >
+                              {copiedStates[`secretKey-${apiKey.id}`] ? "✓" : maskKey(apiKey.secretKey)}
+                            </code>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <code
-                        className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none hover:bg-muted/80 transition-colors"
-                        onClick={() => copyToClipboard(apiKey.key, `key-${apiKey.id}`)}
+                        className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none truncate max-w-[150px] inline-block hover:bg-muted/80 transition-colors"
+                        onClick={() => copyToClipboard(apiKey.baseUrl, `url-${apiKey.id}`)}
                         title={t("common.copy")}
                       >
-                        {copiedStates[`key-${apiKey.id}`] ? "✓" : maskKey(apiKey.key)}
+                        {apiKey.baseUrl}
                       </code>
-                      {apiKey.type === "complex" && apiKey.appId && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">{t("apiKeys.appId")}:</span>
-                          <code
-                            className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
-                            onClick={() => copyToClipboard(apiKey.appId!, `appId-${apiKey.id}`)}
-                            title={t("common.copy")}
-                          >
-                            {copiedStates[`appId-${apiKey.id}`] ? "✓" : maskKey(apiKey.appId)}
-                          </code>
-                        </div>
-                      )}
-                      {apiKey.type === "complex" && apiKey.secretKey && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</span>
-                          <code
-                            className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
-                            onClick={() => copyToClipboard(apiKey.secretKey!, `secretKey-${apiKey.id}`)}
-                            title={t("common.copy")}
-                          >
-                            {copiedStates[`secretKey-${apiKey.id}`] ? "✓" : maskKey(apiKey.secretKey)}
-                          </code>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <code
-                      className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none truncate max-w-[150px] inline-block hover:bg-muted/80 transition-colors"
-                      onClick={() => copyToClipboard(apiKey.baseUrl, `url-${apiKey.id}`)}
-                      title={t("common.copy")}
-                    >
-                      {apiKey.baseUrl}
-                    </code>
-                  </TableCell>
-                  <TableCell>{apiKey.createdAt}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant={apiKey.monitorOnDashboard ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => toggleMonitoring(apiKey)}
-                    >
-                      {apiKey.monitorOnDashboard ? t("apiKeys.monitoringEnabled") : t("apiKeys.monitoringDisabled")}
-                    </Button>
-                  </TableCell>
-                  <TableCell>{apiKey.priority ?? 0}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditKey(apiKey)}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteKey(apiKey.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>{apiKey.createdAt}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant={apiKey.monitorOnDashboard ? "default" : "outline"}
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => toggleMonitoring(apiKey)}
+                      >
+                        {apiKey.monitorOnDashboard ? t("apiKeys.monitoringEnabled") : t("apiKeys.monitoringDisabled")}
+                      </Button>
+                    </TableCell>
+                    <TableCell>{apiKey.priority ?? 0}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditKey(apiKey)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteKey(apiKey.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </div>
