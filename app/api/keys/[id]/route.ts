@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeApiKeyTags } from "@/lib/api-key-tags"
 import { apiKeysKV, getSessionFromRequest } from "@/lib/kv"
 
 export const runtime = "edge"
@@ -19,9 +20,10 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags } = body
+    const normalizedTags = tags === undefined ? undefined : normalizeApiKeyTags(tags)
     const updateData = Object.fromEntries(
-      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority })
+      Object.entries({ name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags: normalizedTags })
         .filter(([_, v]) => v !== undefined)
     )
     const updated = await apiKeysKV.updateKey(session.userId, keyId, updateData)

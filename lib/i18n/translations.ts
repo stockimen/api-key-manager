@@ -270,6 +270,9 @@ export type TranslationKey =
   | "passkey.deleteFailed"
   | "passkey.loginButton"
   | "common.or"
+  | "apiKeys.tags"
+  | "apiKeys.addTag"
+  | "apiKeys.tagFilter"
 
 export interface Translations {
   [key: string]: string
@@ -420,6 +423,9 @@ export const zhCN: Translations = {
   "apiKeys.dashboardMonitoring": "首页检测",
   "apiKeys.monitoringEnabled": "已启用",
   "apiKeys.monitoringDisabled": "未启用",
+  "apiKeys.tags": "标签",
+  "apiKeys.addTag": "输入新标签，回车添加",
+  "apiKeys.tagFilter": "标签筛选",
 
   // 设置相关
   "settings.title": "系统设置",
@@ -671,6 +677,9 @@ export const enUS: Translations = {
   "apiKeys.dashboardMonitoring": "Dashboard Monitoring",
   "apiKeys.monitoringEnabled": "Enabled",
   "apiKeys.monitoringDisabled": "Disabled",
+  "apiKeys.tags": "Tags",
+  "apiKeys.addTag": "Type a new tag, press Enter to add",
+  "apiKeys.tagFilter": "Tag Filter",
 
   // 设置相关
   "settings.title": "System Settings",

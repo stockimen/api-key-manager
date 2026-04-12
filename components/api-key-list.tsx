@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -51,6 +51,7 @@ export default function ApiKeyList() {
   const [copiedStates, setCopiedStates] = useState<CopyState>({})
   const [searchQuery, setSearchQuery] = useState("")
   const [providerFilter, setProviderFilter] = useState("all")
+  const [tagFilter, setTagFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [newKey, setNewKey] = useState({
     name: "",
@@ -63,6 +64,7 @@ export default function ApiKeyList() {
     baseUrl: "",
     monitorOnDashboard: false,
     priority: 0,
+    tags: [] as string[],
   })
 
   const loadKeys = useCallback(async () => {
@@ -96,28 +98,31 @@ export default function ApiKeyList() {
     return Array.from(new Set(apiKeys.map((key) => key.provider.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   }, [apiKeys])
 
+  const tagOptions = useMemo(() => {
+    return Array.from(new Set(apiKeys.flatMap((key) => key.tags || []))).sort((a, b) => a.localeCompare(b))
+  }, [apiKeys])
+
   const filteredKeys = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
 
     return apiKeys.filter((apiKey) => {
       const matchesProvider = providerFilter === "all" || apiKey.provider.trim() === providerFilter
-      if (!matchesProvider) {
-        return false
-      }
+      if (!matchesProvider) return false
 
-      if (!normalizedQuery) {
-        return true
-      }
+      const matchesTag = tagFilter === "all" || (apiKey.tags || []).includes(tagFilter)
+      if (!matchesTag) return false
+
+      if (!normalizedQuery) return true
 
       return [apiKey.name, apiKey.provider, apiKey.baseUrl].some((value) => value.toLowerCase().includes(normalizedQuery))
     })
-  }, [apiKeys, providerFilter, searchQuery])
+  }, [apiKeys, providerFilter, tagFilter, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredKeys.length / PAGE_SIZE))
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [providerFilter, searchQuery])
+  }, [providerFilter, tagFilter, searchQuery])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -151,19 +156,20 @@ export default function ApiKeyList() {
 
       setApiKeys((prev) => [...prev, data.key])
       setIsAddDialogOpen(false)
+      loadKeys()
 
       try {
         const settings = await api.get<{ settings: { defaultKeyType: "apikey" | "complex" } }>("/settings")
         setNewKey({
           name: "", key: "", type: settings.settings.defaultKeyType,
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false, priority: 0,
+          monitorOnDashboard: false, priority: 0, tags: [],
         })
       } catch {
         setNewKey({
           name: "", key: "", type: "apikey",
           provider: "", rechargeUrl: "", appId: "", secretKey: "", baseUrl: "",
-          monitorOnDashboard: false, priority: 0,
+          monitorOnDashboard: false, priority: 0, tags: [],
         })
       }
       setFormErrors({})
@@ -193,6 +199,7 @@ export default function ApiKeyList() {
         rechargeUrl: editingKey.rechargeUrl,
         monitorOnDashboard: editingKey.monitorOnDashboard,
         priority: editingKey.priority,
+        tags: editingKey.tags || [],
       })
 
       setApiKeys((prev) => prev.map((k) => (k.id === editingKey.id ? data.key : k)))
@@ -228,6 +235,7 @@ export default function ApiKeyList() {
         rechargeUrl: apiKey.rechargeUrl,
         monitorOnDashboard: newValue,
         priority: apiKey.priority,
+        tags: apiKey.tags || [],
       })
       setApiKeys((prev) => prev.map((k) => (k.id === apiKey.id ? data.key : k)))
     } catch {
@@ -251,6 +259,7 @@ export default function ApiKeyList() {
   const clearFilters = () => {
     setSearchQuery("")
     setProviderFilter("all")
+    setTagFilter("all")
   }
 
   if (loading) {
@@ -308,6 +317,53 @@ export default function ApiKeyList() {
                         value={newKey.provider} onChange={(e) => setNewKey({ ...newKey, provider: e.target.value })}
                       />
                       <p className="text-xs text-muted-foreground">{t("apiKeys.customProviderDescription")}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>{t("apiKeys.tags")}</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tagOptions.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant={(newKey.tags || []).includes(tag) ? "default" : "outline"}
+                            className="cursor-pointer select-none"
+                            onClick={() => {
+                              const current = newKey.tags || []
+                              setNewKey({
+                                ...newKey,
+                                tags: current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag],
+                              })
+                            }}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder={t("apiKeys.addTag")}
+                          className="h-8 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              const val = (e.target as HTMLInputElement).value.trim()
+                              if (val && !(newKey.tags || []).includes(val)) {
+                                setNewKey({ ...newKey, tags: [...(newKey.tags || []), val] })
+                                ;(e.target as HTMLInputElement).value = ""
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      {(newKey.tags || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {newKey.tags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="gap-1">
+                              {tag}
+                              <X className="h-3 w-3 cursor-pointer" onClick={() => setNewKey({ ...newKey, tags: newKey.tags.filter((t) => t !== tag) })} />
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="key" className="flex items-center">
@@ -400,6 +456,53 @@ export default function ApiKeyList() {
                       <Input value={editingKey.provider} onChange={(e) => setEditingKey({ ...editingKey, provider: e.target.value })} />
                     </div>
                     <div className="grid gap-2">
+                      <Label>{t("apiKeys.tags")}</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tagOptions.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant={(editingKey.tags || []).includes(tag) ? "default" : "outline"}
+                            className="cursor-pointer select-none"
+                            onClick={() => {
+                              const current = editingKey.tags || []
+                              setEditingKey({
+                                ...editingKey,
+                                tags: current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag],
+                              })
+                            }}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder={t("apiKeys.addTag")}
+                          className="h-8 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              const val = (e.target as HTMLInputElement).value.trim()
+                              if (val && !(editingKey.tags || []).includes(val)) {
+                                setEditingKey({ ...editingKey, tags: [...(editingKey.tags || []), val] })
+                                ;(e.target as HTMLInputElement).value = ""
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      {(editingKey.tags || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {editingKey.tags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="gap-1">
+                              {tag}
+                              <X className="h-3 w-3 cursor-pointer" onClick={() => setEditingKey({ ...editingKey, tags: editingKey.tags.filter((t) => t !== tag) })} />
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid gap-2">
                       <Label className="flex items-center">{t("common.key")} <span className="text-red-500 ml-1">*</span></Label>
                       <Input value={editingKey.key} onChange={(e) => setEditingKey({ ...editingKey, key: e.target.value })} className={formErrors.key ? "border-red-500" : ""} />
                       {formErrors.key && <p className="text-red-500 text-xs mt-1">{formErrors.key}</p>}
@@ -453,7 +556,7 @@ export default function ApiKeyList() {
           </DialogContent>
         </Dialog>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px_auto] md:items-end">
           <div className="grid gap-2">
             <Label htmlFor="key-search">{t("apiKeys.searchLabel")}</Label>
             <Input
@@ -479,8 +582,24 @@ export default function ApiKeyList() {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="tag-filter">{t("apiKeys.tagFilter")}</Label>
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger id="tag-filter">
+                <SelectValue placeholder={t("common.all")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("common.all")}</SelectItem>
+                {tagOptions.map((tag) => (
+                  <SelectItem key={tag} value={tag}>
+                    {tag}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2 md:justify-end">
-            <Button variant="outline" onClick={clearFilters} disabled={!searchQuery && providerFilter === "all"}>
+            <Button variant="outline" onClick={clearFilters} disabled={!searchQuery && providerFilter === "all" && tagFilter === "all"}>
               {t("apiKeys.clearFilters")}
             </Button>
           </div>
@@ -497,6 +616,7 @@ export default function ApiKeyList() {
               <TableRow>
                 <TableHead>{t("common.name")}</TableHead>
                 <TableHead>{t("apiKeys.provider")}</TableHead>
+                <TableHead>{t("apiKeys.tags")}</TableHead>
                 <TableHead>{t("common.key")}</TableHead>
                 <TableHead>{t("apiKeys.baseUrl")}</TableHead>
                 <TableHead>{t("common.created")}</TableHead>
@@ -520,6 +640,13 @@ export default function ApiKeyList() {
                     )}
                   </TableCell>
                   <TableCell>{apiKey.provider}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(apiKey.tags || []).map((tag) => (
+                        <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                      ))}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <code

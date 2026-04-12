@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from "next/server"
+import { normalizeApiKeyTags } from "@/lib/api-key-tags"
 import { apiKeysKV, getSessionFromRequest } from "@/lib/kv"
 
 export const runtime = "edge"
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags } = body
 
     if (!name || !key || !provider) {
       return NextResponse.json({ error: "名称、密钥和提供商为必填项" }, { status: 400 })
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       baseUrl: baseUrl || "",
       monitorOnDashboard: monitorOnDashboard === true,
       priority: typeof priority === 'number' ? priority : 0,
+      tags: normalizeApiKeyTags(tags),
     })
 
     return NextResponse.json({ key: newKey }, { status: 201 })

@@ -4,6 +4,7 @@
 
 import { decrypt, encrypt, hashPassword } from "./encryption"
 import { getEncryptionKey, getKV, isDevelopmentEnvironment } from "./get-kv"
+import { normalizeApiKeyTags } from "./api-key-tags"
 
 export type UserRole = "admin" | "user"
 
@@ -34,14 +35,16 @@ export interface ApiKey {
   baseUrl: string
   monitorOnDashboard: boolean
   priority: number
+  tags: string[]
   createdAt: string
   lastUsed: string
 }
 
 // 存储层类型（旧数据可能缺少 monitorOnDashboard 和 priority）
-type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority"> & {
+type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority" | "tags"> & {
   monitorOnDashboard?: boolean
   priority?: number
+  tags?: unknown
 }
 
 // 系统设置类型
@@ -184,6 +187,8 @@ function normalizeApiKey(apiKey: StoredApiKey): ApiKey {
   return {
     ...apiKey,
     monitorOnDashboard: apiKey.monitorOnDashboard !== false,
+    priority: apiKey.priority ?? 0,
+    tags: normalizeApiKeyTags(apiKey.tags),
   }
 }
 
@@ -207,10 +212,7 @@ export const apiKeysKV = {
   async getByUserId(userId: number): Promise<ApiKey[]> {
     const encKey = getEncryptionKey()
     const keys = await getStoredApiKeys(userId)
-    return Promise.all(keys.map(async (key) => ({
-      ...await decryptApiKeyRecord(key, encKey),
-      priority: (key as StoredApiKey).priority ?? 0,
-    })))
+    return Promise.all(keys.map((key) => decryptApiKeyRecord(key, encKey)))
   },
 
   async getById(userId: number, keyId: number): Promise<ApiKey | null> {
@@ -237,6 +239,8 @@ export const apiKeysKV = {
     const newKey: ApiKey = {
       ...keyData,
       monitorOnDashboard: keyData.monitorOnDashboard === true,
+      priority: keyData.priority ?? 0,
+      tags: normalizeApiKeyTags(keyData.tags),
       id: keys.length > 0 ? Math.max(...keys.map((k) => k.id)) + 1 : 1,
       createdAt: new Date().toISOString().split("T")[0],
       lastUsed: "-",
@@ -262,6 +266,13 @@ export const apiKeysKV = {
     if (index === -1) return null
 
     const updateData = { ...data }
+    if ("tags" in updateData) {
+      if (updateData.tags === undefined) {
+        delete updateData.tags
+      } else {
+        updateData.tags = normalizeApiKeyTags(updateData.tags)
+      }
+    }
     if (updateData.key) {
       updateData.key = await encrypt(updateData.key, encKey)
     }
