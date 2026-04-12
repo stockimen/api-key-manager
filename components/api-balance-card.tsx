@@ -285,7 +285,12 @@ export default function ApiStatusCard() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center min-w-0">
                     {getStatusIcon(status.message)}
-                    <span className="font-medium ml-2 truncate">{status.name}</span>
+                    <span
+                      className={`font-medium ml-2 truncate${status.url ? " cursor-pointer hover:underline" : ""}`}
+                      onClick={() => status.url && window.open(status.url, "_blank", "noopener,noreferrer")}
+                    >
+                      {status.name}
+                    </span>
                     <span className="text-sm text-muted-foreground ml-2 shrink-0">({status.provider})</span>
                   </div>
                   <div className="flex items-center space-x-2 shrink-0">

@@ -22,11 +22,19 @@ export default function LoginForm() {
   const [error, setError] = useState("")
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
+  const [checking, setChecking] = useState(true)
 
   // OTP 两步验证状态
   const [step, setStep] = useState<"credentials" | "otp">("credentials")
   const [tempToken, setTempToken] = useState("")
   const [otpCode, setOtpCode] = useState("")
+
+  // 已登录检测
+  useEffect(() => {
+    api.get("/auth/session")
+      .then(() => router.replace("/dashboard"))
+      .catch(() => setChecking(false))
+  }, [router])
 
   // Turnstile 状态（仅在密码登录步骤使用）
   const [turnstileToken, setTurnstileToken] = useState("")
@@ -173,6 +181,16 @@ export default function LoginForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checking) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p>{t("common.loading")}</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (

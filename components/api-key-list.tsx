@@ -509,7 +509,12 @@ export default function ApiKeyList() {
               {paginatedKeys.map((apiKey) => (
                 <TableRow key={apiKey.id}>
                   <TableCell className="font-medium">
-                    {apiKey.name}
+                    <span
+                      className={apiKey.rechargeUrl ? "cursor-pointer hover:underline" : ""}
+                      onClick={() => apiKey.rechargeUrl && window.open(apiKey.rechargeUrl, "_blank")}
+                    >
+                      {apiKey.name}
+                    </span>
                     {apiKey.type === "complex" && (
                       <Badge variant="outline" className="ml-2">{t("apiKeys.complexKey")}</Badge>
                     )}
