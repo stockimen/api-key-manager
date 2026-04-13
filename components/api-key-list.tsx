@@ -137,6 +137,8 @@ export default function ApiKeyList() {
   const [pageSizeLoaded, setPageSizeLoaded] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [newKey, setNewKey] = useState<KeyFormState>(() => createEmptyKeyForm("apikey", DEFAULT_KEY_CATEGORY_ID))
+  const [newTagInput, setNewTagInput] = useState("")
+  const [editingTagInput, setEditingTagInput] = useState("")
 
   const loadKeys = useCallback(async () => {
     try {
@@ -284,6 +286,41 @@ export default function ApiKeyList() {
     return !errors.name && !errors.key
   }
 
+  const appendUniqueTag = (tags: string[] | undefined, candidate: string): string[] | null => {
+    const normalizedTag = candidate.trim()
+    const currentTags = tags || []
+
+    if (!normalizedTag || currentTags.includes(normalizedTag)) {
+      return null
+    }
+
+    return [...currentTags, normalizedTag]
+  }
+
+  const handleAddTagToNewKey = () => {
+    const nextTags = appendUniqueTag(newKey.tags, newTagInput)
+    if (!nextTags) {
+      return
+    }
+
+    setNewKey({ ...newKey, tags: nextTags })
+    setNewTagInput("")
+  }
+
+  const handleAddTagToEditingKey = () => {
+    if (!editingKey) {
+      return
+    }
+
+    const nextTags = appendUniqueTag(editingKey.tags, editingTagInput)
+    if (!nextTags) {
+      return
+    }
+
+    setEditingKey({ ...editingKey, tags: nextTags })
+    setEditingTagInput("")
+  }
+
   const handleAddKey = async () => {
     if (!validateForm(newKey.name, newKey.key)) return
 
@@ -298,6 +335,7 @@ export default function ApiKeyList() {
       setIsAddDialogOpen(false)
       loadKeys()
       setNewKey(createEmptyKeyForm(defaultKeyType, defaultKeyCategoryId))
+      setNewTagInput("")
       setFormErrors({})
       toast({ title: t("toast.addSuccess"), description: t("toast.addSuccess") })
     } catch {
@@ -307,6 +345,7 @@ export default function ApiKeyList() {
 
   const handleEditKey = (key: ApiKey) => {
     setEditingKey({ ...key })
+    setEditingTagInput("")
     setIsEditDialogOpen(true)
     setFormErrors({})
   }
@@ -332,6 +371,7 @@ export default function ApiKeyList() {
       setApiKeys((prev) => prev.map((k) => (k.id === editingKey.id ? data.key : k)))
       setIsEditDialogOpen(false)
       setEditingKey(null)
+      setEditingTagInput("")
       setFormErrors({})
       toast({ title: t("toast.editSuccess"), description: t("toast.editSuccess") })
     } catch {
@@ -399,7 +439,16 @@ export default function ApiKeyList() {
       <CardContent className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">{t("apiKeys.list")}</h2>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              setIsAddDialogOpen(open)
+              if (!open) {
+                setNewTagInput("")
+                setFormErrors({})
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button className="flex items-center">
                 <Plus className="mr-2 h-4 w-4" />
@@ -488,17 +537,19 @@ export default function ApiKeyList() {
                         <Input
                           placeholder={t("apiKeys.addTag")}
                           className="h-8 text-sm"
+                          value={newTagInput}
+                          enterKeyHint="done"
+                          onChange={(e) => setNewTagInput(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault()
-                              const val = (e.target as HTMLInputElement).value.trim()
-                              if (val && !(newKey.tags || []).includes(val)) {
-                                setNewKey({ ...newKey, tags: [...(newKey.tags || []), val] })
-                                ;(e.target as HTMLInputElement).value = ""
-                              }
+                              handleAddTagToNewKey()
                             }
                           }}
                         />
+                        <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={handleAddTagToNewKey}>
+                          {t("common.add")}
+                        </Button>
                       </div>
                       {(newKey.tags || []).length > 0 && (
                         <div className="flex flex-wrap gap-1">
@@ -576,7 +627,16 @@ export default function ApiKeyList() {
           </Dialog>
         </div>
 
-        <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setFormErrors({}) }}>
+        <Dialog
+          open={isEditDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditDialogOpen(open)
+            if (!open) {
+              setFormErrors({})
+              setEditingTagInput("")
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t("apiKeys.edit")}</DialogTitle>
@@ -641,17 +701,19 @@ export default function ApiKeyList() {
                         <Input
                           placeholder={t("apiKeys.addTag")}
                           className="h-8 text-sm"
+                          value={editingTagInput}
+                          enterKeyHint="done"
+                          onChange={(e) => setEditingTagInput(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault()
-                              const val = (e.target as HTMLInputElement).value.trim()
-                              if (val && !(editingKey.tags || []).includes(val)) {
-                                setEditingKey({ ...editingKey, tags: [...(editingKey.tags || []), val] })
-                                ;(e.target as HTMLInputElement).value = ""
-                              }
+                              handleAddTagToEditingKey()
                             }
                           }}
                         />
+                        <Button type="button" variant="outline" size="sm" className="h-8 shrink-0" onClick={handleAddTagToEditingKey}>
+                          {t("common.add")}
+                        </Button>
                       </div>
                       {(editingKey.tags || []).length > 0 && (
                         <div className="flex flex-wrap gap-1">
