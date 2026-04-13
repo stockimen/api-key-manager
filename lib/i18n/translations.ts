@@ -133,6 +133,8 @@ export type TranslationKey =
   | "apiKeys.pageSize"
   | "apiKeys.pageSizeAll"
   | "apiKeys.category"
+  | "apiKeys.supplement"
+  | "apiKeys.supplementPlaceholder"
   | "settings.title"
   | "settings.system"
   | "settings.user"
@@ -434,6 +436,8 @@ export const zhCN: Translations = {
   "apiKeys.pageSize": "每页显示",
   "apiKeys.pageSizeAll": "全部",
   "apiKeys.category": "分类",
+  "apiKeys.supplement": "补充",
+  "apiKeys.supplementPlaceholder": "输入补充说明，仅在新增和编辑时可见",
   "apiKeys.provider": "提供商",
   "apiKeys.providerPlaceholder": "例如：本地部署模型",
   "apiKeys.customProviderDescription": "自定义提供商适用于本地部署或代理服务",
@@ -707,6 +711,8 @@ export const enUS: Translations = {
   "apiKeys.pageSize": "Per Page",
   "apiKeys.pageSizeAll": "All",
   "apiKeys.category": "Category",
+  "apiKeys.supplement": "Supplement",
+  "apiKeys.supplementPlaceholder": "Enter an internal note visible only in add/edit dialogs",
   "apiKeys.provider": "Provider",
   "apiKeys.providerPlaceholder": "e.g., Local Deployment",
   "apiKeys.customProviderDescription": "Custom providers are suitable for local deployments or proxy services",

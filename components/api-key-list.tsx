@@ -19,6 +19,7 @@ import { Plus, Pencil, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api } from "@/lib/api-client"
@@ -61,6 +62,7 @@ type KeyFormState = {
   appId: string
   secretKey: string
   baseUrl: string
+  supplement: string
   monitorOnDashboard: boolean
   priority: number
   tags: string[]
@@ -85,6 +87,7 @@ function createEmptyKeyForm(defaultKeyType: "apikey" | "complex", defaultCategor
     appId: "",
     secretKey: "",
     baseUrl: "",
+    supplement: "",
     monitorOnDashboard: false,
     priority: 0,
     tags: [],
@@ -161,6 +164,7 @@ export default function ApiKeyList() {
           !prev.appId &&
           !prev.secretKey &&
           !prev.baseUrl &&
+          !prev.supplement &&
           prev.monitorOnDashboard === false &&
           prev.priority === 0 &&
           prev.tags.length === 0
@@ -362,6 +366,7 @@ export default function ApiKeyList() {
         appId: editingKey.appId,
         secretKey: editingKey.secretKey,
         baseUrl: editingKey.baseUrl,
+        supplement: editingKey.supplement,
         rechargeUrl: editingKey.rechargeUrl,
         monitorOnDashboard: editingKey.monitorOnDashboard,
         priority: editingKey.priority,
@@ -400,6 +405,7 @@ export default function ApiKeyList() {
         appId: apiKey.appId,
         secretKey: apiKey.secretKey,
         baseUrl: apiKey.baseUrl,
+        supplement: apiKey.supplement,
         rechargeUrl: apiKey.rechargeUrl,
         monitorOnDashboard: newValue,
         priority: apiKey.priority,
@@ -618,6 +624,16 @@ export default function ApiKeyList() {
                     </div>
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="supplement-add">{t("apiKeys.supplement")}</Label>
+                  <Textarea
+                    id="supplement-add"
+                    value={newKey.supplement}
+                    onChange={(e) => setNewKey({ ...newKey, supplement: e.target.value })}
+                    placeholder={t("apiKeys.supplementPlaceholder")}
+                    className="min-h-[96px]"
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setIsAddDialogOpen(false); setFormErrors({}) }}>{t("common.cancel")}</Button>
@@ -771,6 +787,16 @@ export default function ApiKeyList() {
                     </div>
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="supplement-edit">{t("apiKeys.supplement")}</Label>
+                  <Textarea
+                    id="supplement-edit"
+                    value={editingKey.supplement}
+                    onChange={(e) => setEditingKey({ ...editingKey, supplement: e.target.value })}
+                    placeholder={t("apiKeys.supplementPlaceholder")}
+                    className="min-h-[96px]"
+                  />
+                </div>
               </div>
             )}
             <DialogFooter>
@@ -907,10 +933,12 @@ export default function ApiKeyList() {
         </div>
 
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-max">
             <TableHeader>
               <TableRow>
-                <TableHead>{t("common.name")}</TableHead>
+                <TableHead className="sticky left-0 z-20 border-r bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
+                  {t("common.name")}
+                </TableHead>
                 <TableHead>{t("apiKeys.provider")}</TableHead>
                 <TableHead>{t("apiKeys.tags")}</TableHead>
                 <TableHead>{t("common.key")}</TableHead>
@@ -926,8 +954,8 @@ export default function ApiKeyList() {
                 const categoryName = categoryNameMap.get(apiKey.categoryId)
 
                 return (
-                  <TableRow key={apiKey.id}>
-                    <TableCell className="font-medium align-top">
+                  <TableRow key={apiKey.id} className="group">
+                    <TableCell className="sticky left-0 z-10 border-r bg-card font-medium align-top shadow-[1px_0_0_0_hsl(var(--border))] group-hover:bg-muted/50">
                       <div className="w-fit max-w-[14rem] space-y-1 md:max-w-[16rem] xl:max-w-[18rem]">
                         <span
                           className={`block truncate ${apiKey.rechargeUrl ? "cursor-pointer hover:underline" : ""}`}

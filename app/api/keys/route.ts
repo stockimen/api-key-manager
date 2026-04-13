@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags, categoryId } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags, categoryId, supplement } = body
 
     if (!name || !key || !provider) {
       return NextResponse.json({ error: "名称、密钥和提供商为必填项" }, { status: 400 })
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       monitorOnDashboard: monitorOnDashboard === true,
       priority: typeof priority === 'number' ? priority : 0,
       categoryId: ensureValidKeyCategoryId(categoryId, settings.keyCategories, settings.defaultKeyCategoryId),
+      supplement,
       tags: normalizeApiKeyTags(tags),
     })
 

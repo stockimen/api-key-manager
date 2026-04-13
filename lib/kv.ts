@@ -43,16 +43,18 @@ export interface ApiKey {
   monitorOnDashboard: boolean
   priority: number
   categoryId: string
+  supplement: string
   tags: string[]
   createdAt: string
   lastUsed: string
 }
 
 // 存储层类型（旧数据可能缺少 monitorOnDashboard 和 priority）
-type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority" | "categoryId" | "tags"> & {
+type StoredApiKey = Omit<ApiKey, "monitorOnDashboard" | "priority" | "categoryId" | "supplement" | "tags"> & {
   monitorOnDashboard?: boolean
   priority?: number
   categoryId?: unknown
+  supplement?: unknown
   tags?: unknown
 }
 
@@ -204,6 +206,7 @@ function normalizeApiKey(apiKey: StoredApiKey): ApiKey {
     monitorOnDashboard: apiKey.monitorOnDashboard !== false,
     priority: apiKey.priority ?? 0,
     categoryId: normalizeStoredKeyCategoryId(apiKey.categoryId),
+    supplement: typeof apiKey.supplement === "string" ? apiKey.supplement : "",
     tags: normalizeApiKeyTags(apiKey.tags),
   }
 }
@@ -257,6 +260,7 @@ export const apiKeysKV = {
       monitorOnDashboard: keyData.monitorOnDashboard === true,
       priority: keyData.priority ?? 0,
       categoryId: normalizeStoredKeyCategoryId(keyData.categoryId),
+      supplement: typeof keyData.supplement === "string" ? keyData.supplement : "",
       tags: normalizeApiKeyTags(keyData.tags),
       id: keys.length > 0 ? Math.max(...keys.map((k) => k.id)) + 1 : 1,
       createdAt: new Date().toISOString().split("T")[0],
@@ -288,6 +292,13 @@ export const apiKeysKV = {
         delete updateData.categoryId
       } else {
         updateData.categoryId = normalizeStoredKeyCategoryId(updateData.categoryId)
+      }
+    }
+    if ("supplement" in updateData) {
+      if (updateData.supplement === undefined) {
+        delete updateData.supplement
+      } else {
+        updateData.supplement = typeof updateData.supplement === "string" ? updateData.supplement : ""
       }
     }
     if ("tags" in updateData) {

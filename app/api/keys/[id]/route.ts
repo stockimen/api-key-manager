@@ -21,7 +21,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags, categoryId } = body
+    const { name, key, type, provider, rechargeUrl, appId, secretKey, baseUrl, monitorOnDashboard, priority, tags, categoryId, supplement } = body
     const settings = await settingsKV.get()
     const normalizedTags = tags === undefined ? undefined : normalizeApiKeyTags(tags)
     // API 层按当前分类配置校验分类是否存在；存储层仍保留字符串兜底，兼容其他调用路径。
@@ -41,6 +41,7 @@ export async function PUT(
         monitorOnDashboard,
         priority,
         categoryId: normalizedCategoryId,
+        supplement,
         tags: normalizedTags,
       })
         .filter(([_, v]) => v !== undefined)
