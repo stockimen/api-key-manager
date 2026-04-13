@@ -41,6 +41,7 @@ const PAGE_SIZE_STORAGE_KEY = "api-key-list-page-size"
 const PAGE_SIZE_OPTIONS = ["20", "50", "100", "all"] as const
 type PageSizeOption = typeof PAGE_SIZE_OPTIONS[number]
 const DEFAULT_PAGE_SIZE: PageSizeOption = "20"
+const FIXED_CONTENT_COLUMN_CLASS = "w-[8rem] min-w-[8rem] max-w-[8rem]"
 
 function parsePageSizeOption(value: string | null): PageSizeOption {
   if (value === "20" || value === "50" || value === "100" || value === "all") {
@@ -939,10 +940,10 @@ export default function ApiKeyList() {
                 <TableHead className="sticky left-0 z-20 border-r bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
                   {t("common.name")}
                 </TableHead>
-                <TableHead>{t("apiKeys.provider")}</TableHead>
-                <TableHead>{t("apiKeys.tags")}</TableHead>
-                <TableHead>{t("common.key")}</TableHead>
-                <TableHead>{t("apiKeys.baseUrl")}</TableHead>
+                <TableHead className={FIXED_CONTENT_COLUMN_CLASS}>{t("apiKeys.provider")}</TableHead>
+                <TableHead className={FIXED_CONTENT_COLUMN_CLASS}>{t("apiKeys.tags")}</TableHead>
+                <TableHead className={FIXED_CONTENT_COLUMN_CLASS}>{t("common.key")}</TableHead>
+                <TableHead className={FIXED_CONTENT_COLUMN_CLASS}>{t("apiKeys.baseUrl")}</TableHead>
                 <TableHead>{t("common.created")}</TableHead>
                 <TableHead>{t("apiKeys.dashboardMonitoring")}</TableHead>
                 <TableHead>{t("apiKeys.priority")}</TableHead>
@@ -980,32 +981,32 @@ export default function ApiKeyList() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="align-top">
-                      <div className="max-w-[10rem] truncate whitespace-nowrap" title={apiKey.provider}>
+                    <TableCell className={`${FIXED_CONTENT_COLUMN_CLASS} align-top`}>
+                      <div className="whitespace-normal break-words leading-5" title={apiKey.provider}>
                         {apiKey.provider}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={`${FIXED_CONTENT_COLUMN_CLASS} align-top`}>
                       <div className="flex flex-wrap gap-1">
                         {(apiKey.tags || []).map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                          <Badge key={tag} variant="secondary" className="max-w-full break-all whitespace-normal text-xs">{tag}</Badge>
                         ))}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
+                    <TableCell className={`${FIXED_CONTENT_COLUMN_CLASS} align-top`}>
+                      <div className="w-full space-y-1">
                         <code
-                          className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                          className="block w-full overflow-hidden rounded bg-muted px-1 py-0.5 text-sm cursor-pointer select-none truncate hover:bg-muted/80 transition-colors"
                           onClick={() => copyToClipboard(apiKey.key, `key-${apiKey.id}`)}
                           title={t("common.copy")}
                         >
                           {copiedStates[`key-${apiKey.id}`] ? "✓" : maskKey(apiKey.key)}
                         </code>
                         {apiKey.type === "complex" && apiKey.appId && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{t("apiKeys.appId")}:</span>
+                          <div className="flex w-full items-start gap-1">
+                            <span className="shrink-0 text-xs text-muted-foreground">{t("apiKeys.appId")}:</span>
                             <code
-                              className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                              className="block min-w-0 flex-1 overflow-hidden rounded bg-muted px-1 py-0.5 text-xs cursor-pointer select-none truncate hover:bg-muted/80 transition-colors"
                               onClick={() => copyToClipboard(apiKey.appId!, `appId-${apiKey.id}`)}
                               title={t("common.copy")}
                             >
@@ -1014,10 +1015,10 @@ export default function ApiKeyList() {
                           </div>
                         )}
                         {apiKey.type === "complex" && apiKey.secretKey && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</span>
+                          <div className="flex w-full items-start gap-1">
+                            <span className="shrink-0 text-xs text-muted-foreground">{t("apiKeys.secretKey")}:</span>
                             <code
-                              className="bg-muted px-1 py-0.5 rounded text-xs cursor-pointer select-none hover:bg-muted/80 transition-colors"
+                              className="block min-w-0 flex-1 overflow-hidden rounded bg-muted px-1 py-0.5 text-xs cursor-pointer select-none truncate hover:bg-muted/80 transition-colors"
                               onClick={() => copyToClipboard(apiKey.secretKey!, `secretKey-${apiKey.id}`)}
                               title={t("common.copy")}
                             >
@@ -1027,9 +1028,9 @@ export default function ApiKeyList() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={`${FIXED_CONTENT_COLUMN_CLASS} align-top`}>
                       <code
-                        className="bg-muted px-1 py-0.5 rounded text-sm cursor-pointer select-none truncate max-w-[150px] inline-block hover:bg-muted/80 transition-colors"
+                        className="block w-full cursor-pointer select-none overflow-hidden rounded bg-muted px-1 py-0.5 text-sm truncate hover:bg-muted/80 transition-colors"
                         onClick={() => copyToClipboard(apiKey.baseUrl, `url-${apiKey.id}`)}
                         title={t("common.copy")}
                       >
