@@ -4,6 +4,15 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -12,12 +21,13 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { api, isApiError } from "@/lib/api-client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus, ArrowUp, ArrowDown } from "lucide-react"
+import { CheckCircle, AlertCircle, Shield, ShieldOff, QrCode, Fingerprint, Trash2, Plus, ArrowUp, ArrowDown, X } from "lucide-react"
 import { InputOTP } from "@/components/ui/input-otp"
 import QRCode from "qrcode"
 import { TURNSTILE_SITE_KEY } from "@/lib/turnstile"
 import { isWebAuthnSupported, prepareCreationOptions, encodeRegistrationResponse } from "@/lib/webauthn-client"
 import { DEFAULT_KEY_CATEGORY_ID, type KeyCategory, sortKeyCategories } from "@/lib/key-categories"
+import type { ApiKey } from "@/lib/kv"
 
 type SystemSettingsResponse = {
   settings: {
@@ -40,6 +50,10 @@ function getFallbackCategoryId(categories: KeyCategory[]): string {
   return categories[0]?.id ?? DEFAULT_KEY_CATEGORY_ID
 }
 
+function collectTagOptions(keys: ApiKey[]): string[] {
+  return Array.from(new Set(keys.flatMap((key) => key.tags || []))).sort((a, b) => a.localeCompare(b))
+}
+
 export default function SettingsForm() {
   const { toast } = useToast()
   const { t, language, setLanguage } = useLanguage()
@@ -49,6 +63,10 @@ export default function SettingsForm() {
   const [defaultKeyCategoryId, setDefaultKeyCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
   const [defaultListCategoryId, setDefaultListCategoryId] = useState(DEFAULT_KEY_CATEGORY_ID)
   const [newCategoryName, setNewCategoryName] = useState("")
+  const [tagOptions, setTagOptions] = useState<string[]>([])
+  const [isTagEditMode, setIsTagEditMode] = useState(false)
+  const [pendingDeleteTag, setPendingDeleteTag] = useState<string | null>(null)
+  const [deletingTag, setDeletingTag] = useState<string | null>(null)
   const [canManageSystemSettings, setCanManageSystemSettings] = useState(true)
   const [systemSaving, setSystemSaving] = useState(false)
   const [systemSuccess, setSystemSuccess] = useState(false)
@@ -221,6 +239,13 @@ export default function SettingsForm() {
           console.error("加载系统设置失败:", error)
         }
       }
+
+      try {
+        const keysData = await api.get<{ keys: ApiKey[] }>("/keys")
+        setTagOptions(collectTagOptions(keysData.keys))
+      } catch (error) {
+        console.error("加载标签失败:", error)
+      }
     }
 
     loadData()
@@ -258,6 +283,12 @@ export default function SettingsForm() {
       return () => clearTimeout(timer)
     }
   }, [passwordSuccess])
+
+  useEffect(() => {
+    if (tagOptions.length === 0) {
+      setIsTagEditMode(false)
+    }
+  }, [tagOptions.length])
 
   const saveSystemSettings = async () => {
     setSystemSaving(true)
@@ -363,6 +394,39 @@ export default function SettingsForm() {
       })
     } finally {
       setUserSaving(false)
+    }
+  }
+
+  const handleDeleteTag = async () => {
+    const normalizedTag = pendingDeleteTag?.trim() ?? ""
+    if (!normalizedTag || deletingTag) {
+      return
+    }
+
+    setDeletingTag(normalizedTag)
+
+    try {
+      await api.post("/keys/tags", { tag: normalizedTag })
+      setTagOptions((prev) => prev.filter((tag) => tag !== normalizedTag))
+      toast({
+        title: t("toast.deleteSuccess"),
+        description:
+          language === "en-US"
+            ? `Tag "${normalizedTag}" was removed from all API keys.`
+            : `标签“${normalizedTag}”已从所有 API Key 中移除。`,
+      })
+    } catch {
+      toast({
+        title: t("toast.error"),
+        description:
+          language === "en-US"
+            ? `Failed to delete tag "${normalizedTag}".`
+            : `删除标签“${normalizedTag}”失败。`,
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingTag(null)
+      setPendingDeleteTag(null)
     }
   }
 
@@ -758,6 +822,66 @@ export default function SettingsForm() {
               <Label htmlFor="email">{t("common.email")}</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
+
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <Label>{t("apiKeys.tags")}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {language === "en-US"
+                      ? "Manage available tag options for this account. Click Edit to show delete controls."
+                      : "管理当前账号可选的标签项。点击“编辑”后才会显示删除入口。"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="w-fit">
+                    {tagOptions.length}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={tagOptions.length === 0 || deletingTag !== null}
+                    onClick={() => {
+                      setIsTagEditMode((prev) => !prev)
+                      setPendingDeleteTag(null)
+                    }}
+                  >
+                    {isTagEditMode ? t("common.close") : t("common.edit")}
+                  </Button>
+                </div>
+              </div>
+
+              {tagOptions.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {tagOptions.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className={deletingTag === tag ? "gap-1 pr-1 opacity-50 animate-pulse" : "gap-1 pr-1"}
+                    >
+                      <span>{tag}</span>
+                      {isTagEditMode && (
+                        <button
+                          type="button"
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-black/10 disabled:opacity-50"
+                          onClick={() => setPendingDeleteTag(tag)}
+                          disabled={deletingTag !== null}
+                          aria-label={`${t("common.delete")} ${tag}`}
+                          title={t("common.delete")}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {language === "en-US" ? "No tags yet." : "当前还没有可管理的标签。"}
+                </p>
+              )}
+            </div>
           </CardContent>
           <CardFooter>
             <Button onClick={saveUserSettings} disabled={userSaving}>
@@ -765,6 +889,32 @@ export default function SettingsForm() {
             </Button>
           </CardFooter>
         </Card>
+
+        <AlertDialog
+          open={pendingDeleteTag !== null}
+          onOpenChange={(open) => {
+            if (!open && deletingTag === null) {
+              setPendingDeleteTag(null)
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{language === "en-US" ? "Delete tag" : "删除标签"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {language === "en-US"
+                  ? `Delete tag "${pendingDeleteTag ?? ""}" from all API keys?`
+                  : `确定删除标签“${pendingDeleteTag ?? ""}”吗？这会从所有 API Key 中移除该标签。`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingTag !== null}>{t("common.cancel")}</AlertDialogCancel>
+              <Button type="button" variant="destructive" onClick={handleDeleteTag} disabled={deletingTag !== null}>
+                {deletingTag !== null ? (language === "en-US" ? "Deleting..." : "删除中...") : t("common.delete")}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </TabsContent>
 
       <TabsContent value="security">

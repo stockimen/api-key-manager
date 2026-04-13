@@ -329,6 +329,36 @@ export const apiKeysKV = {
     }
   },
 
+  async removeTag(userId: number, tag: string): Promise<number> {
+    const normalizedTag = tag.trim()
+    if (!normalizedTag) {
+      return 0
+    }
+
+    const kv = getKV()
+    const keys = await getStoredApiKeys(userId)
+    let affectedKeyCount = 0
+
+    const nextKeys = keys.map((apiKey) => {
+      const nextTags = apiKey.tags.filter((item) => item !== normalizedTag)
+      if (nextTags.length === apiKey.tags.length) {
+        return apiKey
+      }
+
+      affectedKeyCount += 1
+      return {
+        ...apiKey,
+        tags: nextTags,
+      }
+    })
+
+    if (affectedKeyCount > 0) {
+      await kv.put(`keys:${userId}`, JSON.stringify(nextKeys))
+    }
+
+    return affectedKeyCount
+  },
+
   async deleteKey(userId: number, keyId: number): Promise<boolean> {
     const kv = getKV()
     const keys = await getStoredApiKeys(userId)
