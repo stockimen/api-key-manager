@@ -58,19 +58,30 @@ export default function LoginForm() {
   }, [])
 
   useEffect(() => {
-    if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+    // 确保 ref 准备好之后再渲染 Turnstile
+    const ensureRenderTurnstile = () => {
+      if (!turnstileRef.current) {
+        // 如果 ref 还没准备好，等待下一帧
+        requestAnimationFrame(ensureRenderTurnstile)
+        return
+      }
       renderTurnstile()
+    }
+
+    if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
+      ensureRenderTurnstile()
       return
     }
     const script = document.createElement("script")
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js"
     script.async = true
+    script.onload = ensureRenderTurnstile
     document.head.appendChild(script)
     let timer: ReturnType<typeof setInterval> | undefined
     timer = setInterval(() => {
       if ((window as unknown as { turnstile?: { render: Function } }).turnstile) {
         clearInterval(timer)
-        renderTurnstile()
+        ensureRenderTurnstile()
       }
     }, 100)
     return () => {
@@ -153,7 +164,7 @@ export default function LoginForm() {
         timeout?: number
         allowCredentials: { type: string; id: string; transports?: string[] }[]
         userVerification?: string
-      }>("/auth/passkey/authenticate-start", { turnstileToken })
+      }>("/auth/passkey/authenticate-start", {})
 
       const requestOptions = prepareRequestOptions(startData)
       const assertion = await navigator.credentials.get({ publicKey: requestOptions }) as PublicKeyCredential
@@ -266,7 +277,7 @@ export default function LoginForm() {
               className="w-full"
               variant="outline"
               onClick={handlePasskeyLogin}
-              disabled={loading || (TURNSTILE_SITE_KEY && !turnstileToken)}
+              disabled={loading}
             >
               <Fingerprint className="mr-2 h-4 w-4" />
               {t("passkey.loginButton")}

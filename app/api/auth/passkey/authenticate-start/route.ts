@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { webauthnChallengeKV, loginRateLimitKV, isLoginRateLimited, passkeysKV, userKV, isSetupComplete } from "@/lib/kv"
 import { generateChallenge, getRpIdFromRequest } from "@/lib/webauthn"
-import { verifyTurnstile, getClientIP } from "@/lib/turnstile"
+import { getClientIP } from "@/lib/turnstile"
 
 export const runtime = "edge"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    const { username, turnstileToken } = body as { username?: string; turnstileToken?: string }
-
-    // Turnstile 验证
-    const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
-    if (turnstileSecret) {
-      if (!turnstileToken) {
-        return NextResponse.json({ error: "请完成人机验证" }, { status: 400 })
-      }
-      const isValid = await verifyTurnstile(turnstileToken, getClientIP(request))
-      if (!isValid) {
-        return NextResponse.json({ error: "人机验证失败，请重试" }, { status: 400 })
-      }
-    }
+    const { username } = body as { username?: string }
 
     // 限流检查（基于 IP）
     const ip = getClientIP(request)
