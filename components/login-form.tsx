@@ -302,6 +302,7 @@ export default function LoginForm() {
             <Button
               variant="ghost"
               className="w-full text-sm text-muted-foreground"
+              disabled={loading}
               onClick={() => {
                 setStep("credentials")
                 setOtpCode("")
