@@ -368,7 +368,16 @@ export async function verifyAuthentication(
   const signatureBuf = base64urlToBuffer(response.response.signature)
   const signedData = concatBuffers(authDataBuf, await crypto.subtle.digest("SHA-256", clientDataBuf))
 
-  const valid = await verifySignature(publicKey, storedCredential.publicKeyAlgorithm, signatureBuf, signedData)
+  let valid = await verifySignature(publicKey, storedCredential.publicKeyAlgorithm, signatureBuf, signedData)
+
+  // Cloudflare Workers 的 Web Crypto 可能期望 raw r||s 格式而非 DER
+  if (!valid) {
+    try {
+      const rawSig = derToRaw(signatureBuf)
+      valid = await verifySignature(publicKey, storedCredential.publicKeyAlgorithm, rawSig, signedData)
+    } catch {}
+  }
+
   if (!valid) throw new Error("签名验证失败")
 
   // 8. 验证 signCount（防克隆）
@@ -382,6 +391,28 @@ export async function verifyAuthentication(
 }
 
 // ─── 辅助函数 ──────────────────────────────────────────
+
+/** 将 DER 编码的 ECDSA 签名转换为 raw r||s 格式（各 32 字节） */
+function derToRaw(derSig: ArrayBuffer): ArrayBuffer {
+  const bytes = new Uint8Array(derSig)
+  if (bytes[0] !== 0x30) throw new Error("not DER")
+  const raw = new Uint8Array(64) // P-256: r(32) + s(32)
+  let offset = 2 // skip 0x30 and length byte
+  // r
+  if (bytes[offset] !== 0x02) throw new Error("not DER")
+  offset++
+  const rLen = bytes[offset++]
+  const rStart = offset + (rLen > 32 ? 1 : 0)
+  raw.set(bytes.slice(rStart, rStart + 32), 32 - (rLen > 32 ? 32 : rLen))
+  offset += rLen
+  // s
+  if (bytes[offset] !== 0x02) throw new Error("not DER")
+  offset++
+  const sLen = bytes[offset++]
+  const sStart = offset + (sLen > 32 ? 1 : 0)
+  raw.set(bytes.slice(sStart, sStart + 32), 32 + (32 - (sLen > 32 ? 32 : sLen)))
+  return raw.buffer
+}
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
